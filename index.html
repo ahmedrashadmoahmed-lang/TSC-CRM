@@ -1,0 +1,4077 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>نظام محاسبي برو - CRM متكامل</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        /* أنماط أساسية */
+        :root {
+            --primary-color: #3b82f6;
+            --secondary-color: #6366f1;
+            --success-color: #10b981;
+            --warning-color: #f59e0b;
+            --error-color: #ef4444;
+        }
+
+        .page { display: none; }
+        .active-page { display: block; }
+        .nav-active { background-color: var(--primary-color) !important; color: white !important; }
+        
+        /* Animations */
+        .fade-in { animation: fadeIn 0.3s ease-in; }
+        .slide-in { animation: slideIn 0.3s ease-out; }
+        .bounce-in { animation: bounceIn 0.5s ease-out; }
+        
+        @keyframes fadeIn { from { opacity: 0 } to { opacity: 1 } }
+        @keyframes slideIn { from { transform: translateX(20px); opacity: 0 } to { transform: translateX(0); opacity: 1 } }
+        @keyframes bounceIn { 
+            0% { transform: scale(0.8); opacity: 0 } 
+            50% { transform: scale(1.05); opacity: 0.8 } 
+            100% { transform: scale(1); opacity: 1 } 
+        }
+
+        .drawer-side { position: fixed; top:0; right:0; height:100vh; overflow-y:auto; z-index:30; }
+        .drawer-content { margin-right:320px; }
+        @media (max-width: 1023px) { .drawer-content { margin-right:0; } }
+
+        /* Toast */
+        .muh-toast { position: fixed; top: 20px; left: 20px; z-index: 9999; min-width: 300px; }
+        
+        /* Chat bubbles */
+        .chat-bubble-user { background-color: #e5e7eb; color: #1f2937; }
+        .chat-bubble-assistant { background-color: var(--primary-color); color: white; }
+        
+        /* Custom components */
+        .stat-card { transition: all 0.3s ease; }
+        .stat-card:hover { transform: translateY(-5px); box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04); }
+        
+        .invoice-item-row { transition: all 0.2s ease; }
+        .invoice-item-row:hover { background-color: #f8fafc; }
+        
+        /* Dark mode support */
+        .dark .invoice-item-row:hover { background-color: #1e293b; }
+        
+        /* Loading spinner */
+        .loading-spinner { 
+            border: 3px solid #f3f4f6; 
+            border-top: 3px solid var(--primary-color); 
+            border-radius: 50%; 
+            width: 40px; 
+            height: 40px; 
+            animation: spin 1s linear infinite; 
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        
+        /* Chart containers */
+        .chart-container { position: relative; height: 300px; width: 100%; }
+        
+        /* Print styles */
+        @media print {
+            .no-print { display: none !important; }
+            .print-full { width: 100% !important; }
+        }
+    </style>
+</head>
+<body class="rtl bg-gray-50 dark:bg-gray-900 text-gray-800 dark:text-gray-200" id="app">
+
+    <!-- Loading Screen -->
+    <div id="loading" class="fixed inset-0 bg-white dark:bg-gray-900 z-50 flex items-center justify-center">
+        <div class="text-center">
+            <div class="loading-spinner mb-4"></div>
+            <p class="text-gray-600 dark:text-gray-400">جاري تحميل النظام...</p>
+            <p class="text-sm text-gray-500 dark:text-gray-500 mt-2" id="loading-step">تهيئة البيانات</p>
+        </div>
+    </div>
+
+    <!-- Main Layout -->
+    <div class="drawer lg:drawer-open" id="main-layout" style="display:none;">
+        <input id="drawer-toggle" type="checkbox" class="drawer-toggle" />
+
+        <div class="drawer-content flex flex-col">
+            <header class="navbar bg-base-100 dark:bg-gray-800 shadow-sm border-b dark:border-gray-700 sticky top-0 z-20">
+                <div class="navbar-start">
+                    <label for="drawer-toggle" class="btn btn-ghost drawer-button lg:hidden">
+                        <i class="bi bi-list text-xl"></i>
+                    </label>
+                    <h1 class="text-xl font-semibold" id="page-title">لوحة التحكم</h1>
+                </div>
+
+                <div class="navbar-center hidden lg:flex">
+                    <div class="form-control">
+                        <div class="input-group">
+                            <input type="text" placeholder="ابحث في العملاء، الفواتير، المنتجات..." class="input input-bordered dark:bg-gray-700 dark:border-gray-600" id="global-search" />
+                            <button class="btn btn-square" onclick="performGlobalSearch()">
+                                <i class="bi bi-search"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="navbar-end">
+                    <!-- Theme Toggle -->
+                    <button class="btn btn-ghost btn-circle" onclick="toggleTheme()">
+                        <i class="bi bi-sun-fill hidden dark:block" id="theme-light-icon"></i>
+                        <i class="bi bi-moon-fill block dark:hidden" id="theme-dark-icon"></i>
+                    </button>
+                    
+                    <!-- Notifications -->
+                    <div class="dropdown dropdown-end">
+                        <div tabindex="0" role="button" class="btn btn-ghost btn-circle">
+                            <div class="indicator">
+                                <i class="bi bi-bell text-xl"></i>
+                                <span class="badge badge-xs badge-primary indicator-item" id="notification-count">3</span>
+                            </div>
+                        </div>
+                        <div tabindex="0" class="mt-3 z-[1] card card-compact dropdown-content w-80 bg-base-100 dark:bg-gray-800 shadow">
+                            <div class="card-body">
+                                <span class="font-bold text-lg">الإشعارات</span>
+                                <div class="space-y-2 mt-2 max-h-60 overflow-y-auto" id="notification-list">
+                                    <div class="p-2 rounded bg-blue-50 dark:bg-blue-900/20">
+                                        <div class="text-sm font-medium">فاتورة جديدة من أحمد</div>
+                                        <div class="text-xs text-gray-500">منذ 5 دقائق</div>
+                                    </div>
+                                    <div class="p-2 rounded bg-yellow-50 dark:bg-yellow-900/20">
+                                        <div class="text-sm font-medium">توصية ذكية جديدة</div>
+                                        <div class="text-xs text-gray-500">منذ ساعة</div>
+                                    </div>
+                                    <div class="p-2 rounded bg-red-50 dark:bg-red-900/20">
+                                        <div class="text-sm font-medium">منتج على وشك النفاد</div>
+                                        <div class="text-xs text-gray-500">منذ 3 ساعات</div>
+                                    </div>
+                                </div>
+                                <div class="card-actions justify-end mt-2">
+                                    <button class="btn btn-primary btn-sm" onclick="navigateTo('notifications')">عرض الكل</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- User Menu -->
+                    <div class="dropdown dropdown-end">
+                        <div tabindex="0" role="button" class="btn btn-ghost btn-circle avatar">
+                            <div class="w-10 rounded-full bg-primary text-white flex items-center justify-center">
+                                <span id="user-avatar">م</span>
+                            </div>
+                        </div>
+                        <ul tabindex="0" class="menu menu-sm dropdown-content mt-3 z-[1] p-2 shadow bg-base-100 dark:bg-gray-800 rounded-box w-52">
+                            <li class="p-2 text-sm font-semibold border-b dark:border-gray-700" id="user-name">مدير النظام</li>
+                            <li><a onclick="navigateTo('profile')"><i class="bi bi-person"></i> الملف الشخصي</a></li>
+                            <li><a onclick="navigateTo('settings')"><i class="bi bi-gear"></i> الإعدادات</a></li>
+                            <li><a onclick="showModal('backupModal')"><i class="bi bi-cloud-arrow-down"></i> النسخ الاحتياطي</a></li>
+                            <li><a class="text-error" onclick="logout()"><i class="bi bi-box-arrow-right"></i> تسجيل الخروج</a></li>
+                        </ul>
+                    </div>
+                </div>
+            </header>
+
+            <main class="flex-1 p-4 lg:p-6 bg-gray-50 dark:bg-gray-900" id="main-content">
+                <!-- المحتوى يتم تحميله ديناميكياً -->
+            </main>
+        </div>
+
+        <!-- Sidebar -->
+        <div class="drawer-side">
+            <label for="drawer-toggle" aria-label="close sidebar" class="drawer-overlay"></label>
+            <div class="menu p-4 w-80 min-h-full bg-base-200 dark:bg-gray-800 text-base-content" style="position: fixed; top: 0; right: 0; height: 100vh; overflow-y: auto;">
+                <div class="flex items-center gap-3 mb-8 p-4 border-b dark:border-gray-700">
+                    <div class="w-12 h-12 bg-primary rounded-full flex items-center justify-center">
+                        <span class="text-white font-bold">م</span>
+                    </div>
+                    <div>
+                        <h2 class="font-bold text-lg">محاسبي برو</h2>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">الإصدار 4.0</p>
+                    </div>
+                </div>
+
+                <ul class="space-y-2" id="main-nav">
+                    <li><a class="nav-link nav-active" data-page="dashboard" onclick="navigateTo('dashboard')"><i class="bi bi-speedometer2"></i> لوحة التحكم</a></li>
+                    <li><a class="nav-link" data-page="customers" onclick="navigateTo('customers')"><i class="bi bi-people"></i> العملاء</a></li>
+                    <li><a class="nav-link" data-page="invoices" onclick="navigateTo('invoices')"><i class="bi bi-receipt"></i> الفواتير</a></li>
+                    <li><a class="nav-link" data-page="inventory" onclick="navigateTo('inventory')"><i class="bi bi-box-seam"></i> المخازن</a></li>
+                    <li><a class="nav-link" data-page="ai-assistant" onclick="navigateTo('ai-assistant')"><i class="bi bi-robot"></i> المساعد الذكي</a></li>
+                    <li><a class="nav-link" data-page="reports" onclick="navigateTo('reports')"><i class="bi bi-bar-chart"></i> التقارير</a></li>
+                    <li><a class="nav-link" data-page="notifications" onclick="navigateTo('notifications')"><i class="bi bi-bell"></i> الإشعارات</a></li>
+                    <li><a class="nav-link" data-page="settings" onclick="navigateTo('settings')"><i class="bi bi-gear"></i> الإعدادات</a></li>
+                </ul>
+
+                <!-- Quick Stats -->
+                <div class="mt-6 p-4 bg-base-100 dark:bg-gray-700 rounded-lg">
+                    <h3 class="font-semibold mb-2">إحصائيات سريعة</h3>
+                    <div class="space-y-2 text-sm">
+                        <div class="flex justify-between">
+                            <span>العملاء النشطين:</span>
+                            <span class="font-semibold" id="sidebar-active-customers">0</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>الفواتير المعلقة:</span>
+                            <span class="font-semibold" id="sidebar-pending-invoices">0</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>المبيعات الشهرية:</span>
+                            <span class="font-semibold" id="sidebar-monthly-sales">0 ر.س</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- AI Assistant Card -->
+                <div class="mt-auto pt-8">
+                    <div class="card bg-primary text-primary-content">
+                        <div class="card-body">
+                            <h3 class="card-title"><i class="bi bi-robot"></i> المساعد الذكي</h3>
+                            <p>هل تحتاج مساعدة في تحليل بياناتك؟</p>
+                            <div class="card-actions justify-end">
+                                <button class="btn btn-secondary btn-sm" onclick="navigateTo('ai-assistant')">استخدم الذكاء الاصطناعي</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- AI Floating Helper -->
+    <div class="fixed bottom-6 left-6 z-40 no-print">
+        <div class="dropdown dropdown-top">
+            <div tabindex="0" role="button" class="btn btn-primary btn-circle w-16 h-16 shadow-lg bounce-in">
+                <i class="bi bi-robot text-2xl"></i>
+            </div>
+            <div tabindex="0" class="dropdown-content z-[1] card card-compact w-96 p-2 shadow-2xl bg-base-100 dark:bg-gray-800">
+                <div class="card-body">
+                    <h3 class="card-title">المساعد الذكي</h3>
+                    <p class="text-sm">كيف يمكنني مساعدتك اليوم؟</p>
+
+                    <div class="chat chat-start mt-4">
+                        <div class="chat-bubble chat-bubble-assistant">مرحباً! أنا المساعد الذكي. يمكنني مساعدتك في تحليل البيانات، إنشاء تقارير، وإعطاء توصيات.</div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-2 mt-4">
+                        <button class="btn btn-outline btn-sm" onclick="askAIFloating('تحليل المبيعات')"><i class="bi bi-graph-up"></i> تحليل المبيعات</button>
+                        <button class="btn btn-outline btn-sm" onclick="askAIFloating('عملاء جدد')"><i class="bi bi-people"></i> عملاء جدد</button>
+                        <button class="btn btn-outline btn-sm" onclick="askAIFloating('توصيات المخزون')"><i class="bi bi-box-seam"></i> المخزون</button>
+                        <button class="btn btn-outline btn-sm" onclick="askAIFloating('التقارير المالية')"><i class="bi bi-bar-chart"></i> التقارير</button>
+                    </div>
+
+                    <div class="flex gap-2 mt-4">
+                        <input type="text" placeholder="اكتب سؤالك..." class="input input-bordered flex-1 dark:bg-gray-700 dark:border-gray-600" id="ai-question-floating" />
+                        <button class="btn btn-primary" onclick="askAIFloatingMessage()"><i class="bi bi-send"></i></button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toast-container"></div>
+
+    <!-- Keyboard Shortcuts Help Modal -->
+    <dialog id="shortcutsModal" class="modal">
+        <div class="modal-box">
+            <h3 class="font-bold text-lg mb-4">إختصارات لوحة المفاتيح</h3>
+            <div class="space-y-3">
+                <div class="flex justify-between items-center">
+                    <span>لوحة التحكم</span>
+                    <kbd class="kbd kbd-sm">Ctrl + 1</kbd>
+                </div>
+                <div class="flex justify-between items-center">
+                    <span>العملاء</span>
+                    <kbd class="kbd kbd-sm">Ctrl + 2</kbd>
+                </div>
+                <div class="flex justify-between items-center">
+                    <span>الفواتير</span>
+                    <kbd class="kbd kbd-sm">Ctrl + 3</kbd>
+                </div>
+                <div class="flex justify-between items-center">
+                    <span>المساعد الذكي</span>
+                    <kbd class="kbd kbd-sm">Ctrl + I</kbd>
+                </div>
+                <div class="flex justify-between items-center">
+                    <span>البحث</span>
+                    <kbd class="kbd kbd-sm">Ctrl + K</kbd>
+                </div>
+                <div class="flex justify-between items-center">
+                    <span>تبديل السمة</span>
+                    <kbd class="kbd kbd-sm">Ctrl + T</kbd>
+                </div>
+            </div>
+            <div class="modal-action">
+                <button class="btn btn-ghost" onclick="document.getElementById('shortcutsModal').close()">إغلاق</button>
+            </div>
+        </div>
+    </dialog>
+
+    <!-- Backup Modal -->
+    <dialog id="backupModal" class="modal">
+        <div class="modal-box">
+            <h3 class="font-bold text-lg mb-4">النسخ الاحتياطي والاستعادة</h3>
+            <div class="space-y-4">
+                <div class="card bg-base-200 dark:bg-gray-700">
+                    <div class="card-body">
+                        <h4 class="card-title text-sm"><i class="bi bi-cloud-arrow-down"></i> تصدير البيانات</h4>
+                        <p class="text-sm">قم بتحميل نسخة احتياطية من جميع بياناتك</p>
+                        <div class="card-actions justify-end">
+                            <button class="btn btn-primary btn-sm" onclick="exportData()">تصدير البيانات</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card bg-base-200 dark:bg-gray-700">
+                    <div class="card-body">
+                        <h4 class="card-title text-sm"><i class="bi bi-cloud-arrow-up"></i> استيراد البيانات</h4>
+                        <p class="text-sm">استعادة البيانات من نسخة احتياطية</p>
+                        <input type="file" id="importFile" class="file-input file-input-bordered w-full mt-2" accept=".json" />
+                        <div class="card-actions justify-end mt-2">
+                            <button class="btn btn-secondary btn-sm" onclick="importData()">استيراد البيانات</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-action">
+                <button class="btn btn-ghost" onclick="document.getElementById('backupModal').close()">إغلاق</button>
+            </div>
+        </div>
+    </dialog>
+
+<script>
+// ========== بيانات التطبيق والحالة ==========
+const STORAGE_KEYS = {
+    customers: 'muhasebypro_customers_v2',
+    invoices: 'muhasebypro_invoices_v2',
+    products: 'muhasebypro_products_v2',
+    settings: 'muhasebypro_settings_v2',
+    aiChats: 'muhasebypro_ai_chats_v2',
+    notifications: 'muhasebypro_notifications_v2'
+};
+
+let appData = {
+    customers: [],
+    invoices: [],
+    products: [],
+    settings: {
+        company: {
+            name: 'شركة محاسبي برو',
+            email: 'info@muhasebypro.com',
+            phone: '+20123456789',
+            address: 'القاهرة - مصر',
+            website: 'www.muhasebypro.com',
+            logo: ''
+        },
+        financial: {
+            currency: 'EGP',
+            taxRate: 14,
+            invoicePrefix: 'INV-',
+            invoiceTerms: 'الدفع خلال 30 يوماً',
+            paymentMethods: ['نقدي', 'تحويل بنكي', 'بطاقة ائتمان']
+        },
+        appearance: {
+            theme: 'light',
+            language: 'ar'
+        },
+        ai: {
+            apiKey: '',
+            model: 'gpt-4',
+            temperature: 0.7
+        }
+    },
+    aiChats: [],
+    notifications: []
+};
+
+let currentPage = 'dashboard';
+let currentTheme = 'light';
+
+// ========== وظائف التهيئة ==========
+function initializeApp() {
+    updateLoadingStep('جاري تحميل البيانات...');
+    loadPersistentData();
+    
+    updateLoadingStep('جاري تهيئة الواجهة...');
+    initializeTheme();
+    
+    updateLoadingStep('جاري تحميل الواجهة...');
+    setTimeout(() => {
+        document.getElementById('loading').style.display = 'none';
+        document.getElementById('main-layout').style.display = 'block';
+        
+        const hash = window.location.hash.replace('#', '');
+        if (hash && pages[hash]) {
+            navigateTo(hash);
+        } else {
+            navigateTo('dashboard');
+        }
+        
+        updateSidebarStats();
+        setupKeyboardShortcuts();
+        
+        showToast('تم تحميل النظام بنجاح!', 'success');
+    }, 800);
+}
+
+function updateLoadingStep(message) {
+    const stepElement = document.getElementById('loading-step');
+    if (stepElement) {
+        stepElement.textContent = message;
+    }
+}
+
+// ========== إدارة البيانات ==========
+function loadPersistentData() {
+    try {
+        // تحميل الإعدادات
+        const savedSettings = localStorage.getItem(STORAGE_KEYS.settings);
+        if (savedSettings) {
+            appData.settings = { ...appData.settings, ...JSON.parse(savedSettings) };
+        }
+        
+        // تحميل العملاء
+        const savedCustomers = localStorage.getItem(STORAGE_KEYS.customers);
+        appData.customers = savedCustomers ? JSON.parse(savedCustomers) : getSampleCustomers();
+        
+        // تحميل الفواتير
+        const savedInvoices = localStorage.getItem(STORAGE_KEYS.invoices);
+        appData.invoices = savedInvoices ? JSON.parse(savedInvoices) : [];
+        
+        // تحميل المنتجات
+        const savedProducts = localStorage.getItem(STORAGE_KEYS.products);
+        appData.products = savedProducts ? JSON.parse(savedProducts) : getSampleProducts();
+        
+        // تحميل الدردشات
+        const savedChats = localStorage.getItem(STORAGE_KEYS.aiChats);
+        appData.aiChats = savedChats ? JSON.parse(savedChats) : [];
+        
+        // تحميل الإشعارات
+        const savedNotifications = localStorage.getItem(STORAGE_KEYS.notifications);
+        appData.notifications = savedNotifications ? JSON.parse(savedNotifications) : getSampleNotifications();
+        
+    } catch (error) {
+        console.error('خطأ في تحميل البيانات:', error);
+        showToast('حدث خطأ في تحميل البيانات', 'error');
+        initializeSampleData();
+    }
+}
+
+function savePersistentData() {
+    try {
+        localStorage.setItem(STORAGE_KEYS.customers, JSON.stringify(appData.customers));
+        localStorage.setItem(STORAGE_KEYS.invoices, JSON.stringify(appData.invoices));
+        localStorage.setItem(STORAGE_KEYS.products, JSON.stringify(appData.products));
+        localStorage.setItem(STORAGE_KEYS.settings, JSON.stringify(appData.settings));
+        localStorage.setItem(STORAGE_KEYS.aiChats, JSON.stringify(appData.aiChats));
+        localStorage.setItem(STORAGE_KEYS.notifications, JSON.stringify(appData.notifications));
+    } catch (error) {
+        console.error('خطأ في حفظ البيانات:', error);
+        showToast('حدث خطأ في حفظ البيانات', 'error');
+    }
+}
+
+function initializeSampleData() {
+    appData.customers = getSampleCustomers();
+    appData.products = getSampleProducts();
+    appData.notifications = getSampleNotifications();
+}
+
+function getSampleCustomers() {
+    return [
+        {
+            id: 'c1',
+            name: 'أحمد محمد',
+            email: 'ahmed@tech.com',
+            phone: '+201012345678',
+            company: 'شركة التقنية',
+            address: 'القاهرة، مصر',
+            status: 'active',
+            type: 'regular',
+            creditLimit: 50000,
+            balance: 15000,
+            notes: 'عميل منتظم',
+            createdAt: new Date().toISOString(),
+            lastInteraction: new Date().toISOString()
+        },
+        {
+            id: 'c2',
+            name: 'سارة أحمد',
+            email: 'sara@najah.com',
+            phone: '+201023456789',
+            company: 'شركة النجاح',
+            address: 'الإسكندرية، مصر',
+            status: 'active',
+            type: 'vip',
+            creditLimit: 100000,
+            balance: 25000,
+            notes: 'عميل VIP',
+            createdAt: new Date().toISOString(),
+            lastInteraction: new Date().toISOString()
+        }
+    ];
+}
+
+function getSampleProducts() {
+    return [
+        {
+            id: 'p1',
+            name: 'لابتوب ديل XPS 15',
+            sku: 'DL-XPS15-001',
+            category: 'إلكترونيات',
+            price: 4500,
+            cost: 3200,
+            stock: 15,
+            minStock: 5,
+            status: 'in_stock',
+            description: 'لابتوب ديل XPS 15 بمواصفات عالية'
+        },
+        {
+            id: 'p2',
+            name: 'طابعة ليزر HP',
+            sku: 'HP-LASER-002',
+            category: 'إلكترونيات',
+            price: 899,
+            cost: 650,
+            stock: 3,
+            minStock: 10,
+            status: 'low_stock',
+            description: 'طابعة ليزر HP عالية الجودة'
+        }
+    ];
+}
+
+function getSampleNotifications() {
+    return [
+        {
+            id: 'n1',
+            title: 'فاتورة جديدة',
+            message: 'تم إنشاء فاتورة جديدة #INV-001',
+            type: 'info',
+            read: false,
+            date: new Date().toISOString(),
+            action: { type: 'invoice', id: 'inv1' }
+        },
+        {
+            id: 'n2',
+            title: 'توصية ذكية',
+            message: 'توجد توصية جديدة لتحسين المبيعات',
+            type: 'warning',
+            read: false,
+            date: new Date(Date.now() - 3600000).toISOString(),
+            action: { type: 'ai', id: 'rec1' }
+        },
+        {
+            id: 'n3',
+            title: 'منتج منخفض المخزون',
+            message: 'المنتج "طابعة ليزر HP" على وشك النفاد',
+            type: 'error',
+            read: false,
+            date: new Date(Date.now() - 10800000).toISOString(),
+            action: { type: 'inventory', id: 'p2' }
+        }
+    ];
+}
+
+// ========== إدارة السمة ==========
+function initializeTheme() {
+    const savedTheme = localStorage.getItem('muhasebypro_theme') || appData.settings.appearance.theme;
+    currentTheme = savedTheme;
+    applyTheme(savedTheme);
+}
+
+function toggleTheme() {
+    currentTheme = currentTheme === 'light' ? 'dark' : 'light';
+    applyTheme(currentTheme);
+    localStorage.setItem('muhasebypro_theme', currentTheme);
+    appData.settings.appearance.theme = currentTheme;
+    savePersistentData();
+}
+
+function applyTheme(theme) {
+    if (theme === 'dark') {
+        document.documentElement.classList.add('dark');
+        document.body.classList.add('dark');
+    } else {
+        document.documentElement.classList.remove('dark');
+        document.body.classList.remove('dark');
+    }
+}
+
+// ========== التنقل بين الصفحات ==========
+const pages = {
+    'dashboard': 'لوحة التحكم',
+    'customers': 'إدارة العملاء',
+    'invoices': 'إدارة الفواتير',
+    'inventory': 'إدارة المخازن',
+    'ai-assistant': 'المساعد الذكي',
+    'reports': 'التقارير والتحليلات',
+    'notifications': 'الإشعارات',
+    'settings': 'الإعدادات',
+    'profile': 'الملف الشخصي'
+};
+
+function navigateTo(page) {
+    if (!pages[page]) return;
+    
+    currentPage = page;
+    document.getElementById('page-title').textContent = pages[page];
+    
+    // تحديث الروابط النشطة
+    document.querySelectorAll('.nav-link').forEach(link => link.classList.remove('nav-active'));
+    const activeLink = document.querySelector(`.nav-link[data-page="${page}"]`);
+    if (activeLink) activeLink.classList.add('nav-active');
+    
+    // إغلاق القائمة الجانبية على الأجهزة المحمولة
+    if (window.innerWidth < 1024) {
+        document.getElementById('drawer-toggle').checked = false;
+    }
+    
+    // تحميل المحتوى
+    loadPageContent(page);
+    
+    // تحديث حالة المتصفح
+    window.history.pushState({ page }, '', `#${page}`);
+}
+
+function loadPageContent(page) {
+    const mainContent = document.getElementById('main-content');
+    
+    switch(page) {
+        case 'dashboard':
+            mainContent.innerHTML = renderDashboard();
+            initializeDashboard();
+            break;
+        case 'customers':
+            mainContent.innerHTML = renderCustomers();
+            initializeCustomersPage();
+            break;
+        case 'invoices':
+            mainContent.innerHTML = renderInvoices();
+            initializeInvoicesPage();
+            break;
+        case 'inventory':
+            mainContent.innerHTML = renderInventory();
+            initializeInventoryPage();
+            break;
+        case 'ai-assistant':
+            mainContent.innerHTML = renderAIAssistant();
+            initializeAIAssistantPage();
+            break;
+        case 'reports':
+            mainContent.innerHTML = renderReports();
+            initializeReportsPage();
+            break;
+        case 'notifications':
+            mainContent.innerHTML = renderNotifications();
+            initializeNotificationsPage();
+            break;
+        case 'settings':
+            mainContent.innerHTML = renderSettings();
+            initializeSettingsPage();
+            break;
+        case 'profile':
+            mainContent.innerHTML = renderProfile();
+            break;
+        default:
+            mainContent.innerHTML = '<div class="p-6 text-center">الصفحة غير موجودة</div>';
+    }
+}
+
+// ========== الإشعارات والتنبيهات ==========
+function showToast(message, type = 'info') {
+    const icons = {
+        info: 'bi-info-circle',
+        success: 'bi-check-circle',
+        warning: 'bi-exclamation-triangle',
+        error: 'bi-x-octagon'
+    };
+    
+    const colors = {
+        info: 'alert-info',
+        success: 'alert-success',
+        warning: 'alert-warning',
+        error: 'alert-error'
+    };
+    
+    const container = document.getElementById('toast-container');
+    const toastId = 'toast-' + Date.now();
+    
+    const toast = document.createElement('div');
+    toast.id = toastId;
+    toast.className = `muh-toast fade-in`;
+    toast.innerHTML = `
+        <div class="alert ${colors[type]} shadow-lg">
+            <div>
+                <i class="bi ${icons[type]} mr-2"></i>
+                <span>${message}</span>
+            </div>
+            <button class="btn btn-sm btn-ghost" onclick="document.getElementById('${toastId}').remove()">
+                <i class="bi bi-x"></i>
+            </button>
+        </div>
+    `;
+    
+    container.appendChild(toast);
+    
+    // إزالة الإشعار تلقائياً بعد 5 ثواني
+    setTimeout(() => {
+        const toastElement = document.getElementById(toastId);
+        if (toastElement) {
+            toastElement.remove();
+        }
+    }, 5000);
+}
+
+function updateSidebarStats() {
+    const activeCustomers = appData.customers.filter(c => c.status === 'active').length;
+    const pendingInvoices = appData.invoices.filter(i => i.status === 'pending').length;
+    const monthlySales = appData.invoices
+        .filter(i => {
+            const invoiceDate = new Date(i.date);
+            const currentMonth = new Date().getMonth();
+            const currentYear = new Date().getFullYear();
+            return invoiceDate.getMonth() === currentMonth && invoiceDate.getFullYear() === currentYear;
+        })
+        .reduce((sum, invoice) => sum + (invoice.total || 0), 0);
+    
+    document.getElementById('sidebar-active-customers').textContent = activeCustomers;
+    document.getElementById('sidebar-pending-invoices').textContent = pendingInvoices;
+    document.getElementById('sidebar-monthly-sales').textContent = formatCurrency(monthlySales);
+}
+
+// ========== إختصارات لوحة المفاتيح ==========
+function setupKeyboardShortcuts() {
+    document.addEventListener('keydown', function(e) {
+        if (e.ctrlKey || e.metaKey) {
+            switch(e.key) {
+                case '1':
+                    e.preventDefault();
+                    navigateTo('dashboard');
+                    break;
+                case '2':
+                    e.preventDefault();
+                    navigateTo('customers');
+                    break;
+                case '3':
+                    e.preventDefault();
+                    navigateTo('invoices');
+                    break;
+                case '4':
+                    e.preventDefault();
+                    navigateTo('inventory');
+                    break;
+                case 'i':
+                    e.preventDefault();
+                    navigateTo('ai-assistant');
+                    break;
+                case 'k':
+                    e.preventDefault();
+                    document.getElementById('global-search').focus();
+                    break;
+                case 't':
+                    e.preventDefault();
+                    toggleTheme();
+                    break;
+                case '?':
+                    e.preventDefault();
+                    showModal('shortcutsModal');
+                    break;
+            }
+        }
+    });
+}
+
+// ========== وظائف مساعدة ==========
+function formatCurrency(amount) {
+    return new Intl.NumberFormat('ar-EG', {
+        style: 'currency',
+        currency: appData.settings.financial.currency,
+        minimumFractionDigits: 2
+    }).format(amount);
+}
+
+function formatDate(dateString) {
+    return new Date(dateString).toLocaleDateString('ar-EG');
+}
+
+function generateId(prefix) {
+    return prefix + '_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+}
+
+function showModal(modalId) {
+    const modal = document.getElementById(modalId);
+    if (modal && typeof modal.showModal === 'function') {
+        modal.showModal();
+    }
+}
+
+function closeModal(modalId) {
+    const modal = document.getElementById(modalId);
+    if (modal && typeof modal.close === 'function') {
+        modal.close();
+    }
+}
+
+// ========== النسخ الاحتياطي والاستعادة ==========
+function exportData() {
+    const dataStr = JSON.stringify(appData, null, 2);
+    const dataBlob = new Blob([dataStr], { type: 'application/json' });
+    
+    const url = URL.createObjectURL(dataBlob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `muhasebypro_backup_${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    
+    showToast('تم تصدير البيانات بنجاح', 'success');
+    closeModal('backupModal');
+}
+
+function importData() {
+    const fileInput = document.getElementById('importFile');
+    const file = fileInput.files[0];
+    
+    if (!file) {
+        showToast('يرجى اختيار ملف', 'error');
+        return;
+    }
+    
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            const importedData = JSON.parse(e.target.result);
+            
+            if (confirm('هل تريد استبدال جميع البيانات الحالية؟')) {
+                appData = importedData;
+                savePersistentData();
+                showToast('تم استيراد البيانات بنجاح', 'success');
+                navigateTo(currentPage); // إعادة تحميل الصفحة الحالية
+                closeModal('backupModal');
+            }
+        } catch (error) {
+            showToast('خطأ في تنسيق الملف', 'error');
+            console.error('Import error:', error);
+        }
+    };
+    
+    reader.readAsText(file);
+}
+
+// ========== تسجيل الخروج ==========
+function logout() {
+    if (confirm('هل تريد تسجيل الخروج؟')) {
+        showToast('تم تسجيل الخروج بنجاح', 'success');
+        setTimeout(() => {
+            document.getElementById('loading').style.display = 'flex';
+            document.getElementById('main-layout').style.display = 'none';
+            // في التطبيق الحقيقي، هنا نعيد التوجيه لصفحة تسجيل الدخول
+        }, 1000);
+    }
+}
+
+// ========== البحث الشامل ==========
+function performGlobalSearch() {
+    const searchTerm = document.getElementById('global-search').value.trim();
+    if (!searchTerm) {
+        showToast('يرجى إدخال مصطلح البحث', 'warning');
+        return;
+    }
+    
+    // البحث في العملاء
+    const customerResults = appData.customers.filter(customer => 
+        customer.name.includes(searchTerm) || 
+        customer.email.includes(searchTerm) ||
+        customer.phone.includes(searchTerm) ||
+        customer.company.includes(searchTerm)
+    );
+    
+    // البحث في الفواتير
+    const invoiceResults = appData.invoices.filter(invoice => 
+        invoice.no.includes(searchTerm) ||
+        (appData.customers.find(c => c.id === invoice.customerId)?.name || '').includes(searchTerm)
+    );
+    
+    // البحث في المنتجات
+    const productResults = appData.products.filter(product => 
+        product.name.includes(searchTerm) ||
+        product.sku.includes(searchTerm) ||
+        product.category.includes(searchTerm)
+    );
+    
+    const totalResults = customerResults.length + invoiceResults.length + productResults.length;
+    
+    if (totalResults === 0) {
+        showToast('لا توجد نتائج للبحث', 'info');
+    } else {
+        showToast(`تم العثور على ${totalResults} نتيجة للبحث`, 'success');
+        
+        // يمكن هنا عرض نتائج البحث في صفحة مخصصة أو modal
+        // للتبسيط، سنعرض النتائج في console
+        console.log('نتائج البحث:', {
+            عملاء: customerResults,
+            فواتير: invoiceResults,
+            منتجات: productResults
+        });
+    }
+}
+
+// ========== المساعد الذكي ==========
+function askAIFloatingMessage() {
+    const input = document.getElementById('ai-question-floating');
+    const question = input.value.trim();
+    
+    if (!question) {
+        showToast('يرجى إدخال سؤال', 'warning');
+        return;
+    }
+    
+    askAI(question);
+    input.value = '';
+}
+
+function askAIFloating(presetQuestion) {
+    askAI(presetQuestion);
+}
+
+function askAI(question) {
+    // محاكاة استجابة المساعد الذكي
+    const responses = [
+        "بناءً على بياناتك، أرى أن المبيعات زادت بنسبة 15% هذا الشهر مقارنة بالشهر الماضي.",
+        "لاحظت أن هناك 5 عملاء محتملين يحتاجون متابعة فورية لتحويلهم إلى عملاء دائمين.",
+        "أقترح تحسين مستوى المخزون للمنتجات الأكثر مبيعاً لتجنب نفادها.",
+        "تحليل البيانات يظهر أن أفضل وقت للمبيعات هو بين الساعة 10 صباحاً و2 ظهراً.",
+        "هناك فرصة لزيادة الإيرادات بنسبة 20% من خلال التركيز على العملاء الحاليين."
+    ];
+    
+    const randomResponse = responses[Math.floor(Math.random() * responses.length)];
+    
+    // حفظ المحادثة
+    const chatId = 'chat_' + Date.now();
+    appData.aiChats.push({
+        id: chatId,
+        question: question,
+        response: randomResponse,
+        timestamp: new Date().toISOString()
+    });
+    
+    savePersistentData();
+    
+    // عرض الإجابة
+    showToast(`المساعد الذكي: ${randomResponse}`, 'info');
+}
+
+// ========== تهيئة الصفحات ==========
+// سيتم استكمال باقي الدوال في الجزء التالي...
+
+// ========== بدء التطبيق ==========
+document.addEventListener('DOMContentLoaded', function() {
+    initializeApp();
+});
+
+// إضافة مستمع لحدث beforeunload لحفظ البيانات
+window.addEventListener('beforeunload', function() {
+    savePersistentData();
+});
+
+// إضافة مستمع لأحداث التصفح (للأمام والخلف)
+window.addEventListener('popstate', function(event) {
+    if (event.state && event.state.page) {
+        navigateTo(event.state.page);
+    }
+});
+
+// الجزء الأول من الكود ينتهي هنا - سيتم إكمال باقي الدوال في الجزء التالي
+</script>
+
+<script>
+// ========== دوال لوحة التحكم ==========
+function renderDashboard() {
+    return `
+        <div class="fade-in">
+            <!-- إحصائيات سريعة -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                <div class="stat-card stat bg-white dark:bg-gray-800 rounded-lg shadow-sm border dark:border-gray-700">
+                    <div class="stat-figure text-primary">
+                        <i class="bi bi-people text-3xl"></i>
+                    </div>
+                    <div class="stat-title">إجمالي العملاء</div>
+                    <div class="stat-value text-primary" id="dash-total-customers">0</div>
+                    <div class="stat-desc">↗︎ 14% زيادة هذا الشهر</div>
+                </div>
+                
+                <div class="stat-card stat bg-white dark:bg-gray-800 rounded-lg shadow-sm border dark:border-gray-700">
+                    <div class="stat-figure text-secondary">
+                        <i class="bi bi-currency-dollar text-3xl"></i>
+                    </div>
+                    <div class="stat-title">إجمالي المبيعات</div>
+                    <div class="stat-value text-secondary" id="dash-total-sales">0</div>
+                    <div class="stat-desc">↗︎ 8% زيادة هذا الشهر</div>
+                </div>
+                
+                <div class="stat-card stat bg-white dark:bg-gray-800 rounded-lg shadow-sm border dark:border-gray-700">
+                    <div class="stat-figure text-accent">
+                        <i class="bi bi-receipt text-3xl"></i>
+                    </div>
+                    <div class="stat-title">الفواتير المعلقة</div>
+                    <div class="stat-value text-accent" id="dash-pending-invoices">0</div>
+                    <div class="stat-desc">↘︎ 5% أقل من الشهر الماضي</div>
+                </div>
+                
+                <div class="stat-card stat bg-white dark:bg-gray-800 rounded-lg shadow-sm border dark:border-gray-700">
+                    <div class="stat-figure text-info">
+                        <i class="bi bi-robot text-3xl"></i>
+                    </div>
+                    <div class="stat-title">التوصيات الذكية</div>
+                    <div class="stat-value text-info">12</div>
+                    <div class="stat-desc">توصيات جديدة</div>
+                </div>
+            </div>
+
+            <!-- الرسوم البيانية والإحصائيات -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+                <div class="card bg-white dark:bg-gray-800 shadow-sm border dark:border-gray-700">
+                    <div class="card-body">
+                        <h2 class="card-title">المبيعات الشهرية</h2>
+                        <div class="chart-container">
+                            <canvas id="salesChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card bg-white dark:bg-gray-800 shadow-sm border dark:border-gray-700">
+                    <div class="card-body">
+                        <h2 class="card-title">توزيع العملاء</h2>
+                        <div class="chart-container">
+                            <canvas id="customersChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- الأنشطة الحديثة -->
+            <div class="card bg-white dark:bg-gray-800 shadow-sm border dark:border-gray-700">
+                <div class="card-body">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="card-title">الأنشطة الحديثة</h2>
+                        <button class="btn btn-ghost btn-sm" onclick="navigateTo('notifications')">عرض الكل</button>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="table table-zebra">
+                            <thead>
+                                <tr>
+                                    <th>النشاط</th>
+                                    <th>التاريخ</th>
+                                    <th>الحالة</th>
+                                </tr>
+                            </thead>
+                            <tbody id="recent-activities">
+                                <!-- سيتم تعبئته ديناميكياً -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+function initializeDashboard() {
+    // تحديث الإحصائيات
+    document.getElementById('dash-total-customers').textContent = appData.customers.length;
+    document.getElementById('dash-total-sales').textContent = formatCurrency(
+        appData.invoices.reduce((sum, invoice) => sum + (invoice.total || 0), 0)
+    );
+    document.getElementById('dash-pending-invoices').textContent = 
+        appData.invoices.filter(i => i.status === 'pending').length;
+    
+    // تحديث الأنشطة الحديثة
+    updateRecentActivities();
+    
+    // تهيئة الرسوم البيانية
+    initializeCharts();
+}
+
+function updateRecentActivities() {
+    const activitiesContainer = document.getElementById('recent-activities');
+    if (!activitiesContainer) return;
+    
+    // جمع الأنشطة من مختلف المصادر
+    const activities = [];
+    
+    // إضافة الفواتير الحديثة
+    appData.invoices.slice(-5).forEach(invoice => {
+        activities.push({
+            type: 'invoice',
+            message: `تم إنشاء فاتورة جديدة ${invoice.no}`,
+            date: invoice.createdAt,
+            status: invoice.status === 'paid' ? 'success' : 'warning'
+        });
+    });
+    
+    // إضافة العملاء الجدد
+    appData.customers.slice(-3).forEach(customer => {
+        activities.push({
+            type: 'customer',
+            message: `تم إضافة عميل جديد: ${customer.name}`,
+            date: customer.createdAt,
+            status: 'info'
+        });
+    });
+    
+    // إضافة الإشعارات
+    appData.notifications.slice(-2).forEach(notification => {
+        activities.push({
+            type: 'notification',
+            message: notification.message,
+            date: notification.date,
+            status: notification.type
+        });
+    });
+    
+    // ترتيب الأنشطة حسب التاريخ
+    activities.sort((a, b) => new Date(b.date) - new Date(a.date));
+    
+    // عرض الأنشطة
+    activitiesContainer.innerHTML = activities.slice(0, 5).map(activity => `
+        <tr>
+            <td>${activity.message}</td>
+            <td>${formatDate(activity.date)}</td>
+            <td>
+                <span class="badge badge-${activity.status}">
+                    ${activity.status === 'success' ? 'مكتمل' : 
+                      activity.status === 'warning' ? 'قيد الانتظار' : 
+                      activity.status === 'info' ? 'معلومة' : 'تنبيه'}
+                </span>
+            </td>
+        </tr>
+    `).join('');
+}
+
+function initializeCharts() {
+    // رسم بياني للمبيعات
+    const salesCtx = document.getElementById('salesChart');
+    if (salesCtx) {
+        const salesData = {
+            labels: ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو'],
+            datasets: [{
+                label: 'المبيعات',
+                data: [12000, 19000, 15000, 25000, 22000, 30000],
+                backgroundColor: 'rgba(59, 130, 246, 0.2)',
+                borderColor: 'rgba(59, 130, 246, 1)',
+                borderWidth: 2,
+                tension: 0.4
+            }]
+        };
+        
+        new Chart(salesCtx, {
+            type: 'line',
+            data: salesData,
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: false
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true
+                    }
+                }
+            }
+        });
+    }
+    
+    // رسم بياني للعملاء
+    const customersCtx = document.getElementById('customersChart');
+    if (customersCtx) {
+        const customerTypes = {
+            'نشط': appData.customers.filter(c => c.status === 'active').length,
+            'غير نشط': appData.customers.filter(c => c.status === 'inactive').length,
+            'VIP': appData.customers.filter(c => c.type === 'vip').length
+        };
+        
+        const customersData = {
+            labels: Object.keys(customerTypes),
+            datasets: [{
+                data: Object.values(customerTypes),
+                backgroundColor: [
+                    'rgba(16, 185, 129, 0.7)',
+                    'rgba(239, 68, 68, 0.7)',
+                    'rgba(139, 92, 246, 0.7)'
+                ],
+                borderWidth: 1
+            }]
+        };
+        
+        new Chart(customersCtx, {
+            type: 'doughnut',
+            data: customersData,
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'bottom'
+                    }
+                }
+            }
+        });
+    }
+}
+
+// ========== دوال إدارة العملاء ==========
+function renderCustomers() {
+    return `
+        <div class="fade-in">
+            <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-6 gap-4">
+                <div>
+                    <h1 class="text-2xl font-bold">إدارة العملاء</h1>
+                    <p class="text-gray-600 dark:text-gray-400">إدارة وتنظيم قاعدة عملائك</p>
+                </div>
+                <div class="flex gap-2">
+                    <button class="btn btn-outline" onclick="exportCustomers()">
+                        <i class="bi bi-download"></i> تصدير
+                    </button>
+                    <button class="btn btn-primary" onclick="showModal('addCustomerModal')">
+                        <i class="bi bi-plus-lg"></i> إضافة عميل جديد
+                    </button>
+                </div>
+            </div>
+
+            <!-- بطاقات الإحصائيات -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                <div class="stat bg-white dark:bg-gray-800 rounded-lg border dark:border-gray-700">
+                    <div class="stat-figure text-primary">
+                        <i class="bi bi-people text-2xl"></i>
+                    </div>
+                    <div class="stat-title">إجمالي العملاء</div>
+                    <div class="stat-value text-primary" id="total-customers">0</div>
+                </div>
+                <div class="stat bg-white dark:bg-gray-800 rounded-lg border dark:border-gray-700">
+                    <div class="stat-figure text-success">
+                        <i class="bi bi-check-circle text-2xl"></i>
+                    </div>
+                    <div class="stat-title">العملاء النشطين</div>
+                    <div class="stat-value text-success" id="active-customers">0</div>
+                </div>
+                <div class="stat bg-white dark:bg-gray-800 rounded-lg border dark:border-gray-700">
+                    <div class="stat-figure text-warning">
+                        <i class="bi bi-currency-dollar text-2xl"></i>
+                    </div>
+                    <div class="stat-title">إجمالي الرصيد</div>
+                    <div class="stat-value text-warning" id="total-balance">0</div>
+                </div>
+            </div>
+
+            <!-- أدوات البحث والتصفية -->
+            <div class="card bg-white dark:bg-gray-800 shadow-sm border dark:border-gray-700 mb-6">
+                <div class="card-body">
+                    <div class="flex flex-col lg:flex-row gap-4">
+                        <div class="form-control flex-1">
+                            <input type="text" placeholder="ابحث عن عميل بالاسم، البريد، الهاتف..." 
+                                   class="input input-bordered dark:bg-gray-700 dark:border-gray-600" 
+                                   id="customer-search" />
+                        </div>
+                        <div class="flex gap-2">
+                            <select class="select select-bordered dark:bg-gray-700 dark:border-gray-600" id="customer-status">
+                                <option value="">جميع الحالات</option>
+                                <option value="active">نشط</option>
+                                <option value="inactive">غير نشط</option>
+                            </select>
+                            <select class="select select-bordered dark:bg-gray-700 dark:border-gray-600" id="customer-type">
+                                <option value="">جميع الأنواع</option>
+                                <option value="regular">عادي</option>
+                                <option value="vip">VIP</option>
+                            </select>
+                            <button class="btn btn-ghost" onclick="filterCustomers()">
+                                <i class="bi bi-funnel"></i> تصفية
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- جدول العملاء -->
+            <div class="card bg-white dark:bg-gray-800 shadow-sm border dark:border-gray-700">
+                <div class="card-body p-0">
+                    <div class="overflow-x-auto">
+                        <table class="table table-zebra">
+                            <thead>
+                                <tr class="bg-gray-50 dark:bg-gray-700">
+                                    <th>العميل</th>
+                                    <th>معلومات الاتصال</th>
+                                    <th>الشركة</th>
+                                    <th>الحالة</th>
+                                    <th>الرصيد</th>
+                                    <th>آخر تفاعل</th>
+                                    <th>الإجراءات</th>
+                                </tr>
+                            </thead>
+                            <tbody id="customers-table-body">
+                                <!-- سيتم تعبئته ديناميكياً -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal إضافة عميل -->
+        <dialog id="addCustomerModal" class="modal">
+            <div class="modal-box">
+                <h3 class="font-bold text-lg mb-4">إضافة عميل جديد</h3>
+                <form id="addCustomerForm">
+                    <div class="space-y-4">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div class="form-control">
+                                <label class="label">
+                                    <span class="label-text">اسم العميل</span>
+                                </label>
+                                <input type="text" placeholder="أدخل اسم العميل" 
+                                       class="input input-bordered dark:bg-gray-700 dark:border-gray-600" 
+                                       id="new-cust-name" required>
+                            </div>
+                            <div class="form-control">
+                                <label class="label">
+                                    <span class="label-text">البريد الإلكتروني</span>
+                                </label>
+                                <input type="email" placeholder="البريد الإلكتروني" 
+                                       class="input input-bordered dark:bg-gray-700 dark:border-gray-600" 
+                                       id="new-cust-email" required>
+                            </div>
+                        </div>
+                        
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div class="form-control">
+                                <label class="label">
+                                    <span class="label-text">الهاتف</span>
+                                </label>
+                                <input type="tel" placeholder="رقم الهاتف" 
+                                       class="input input-bordered dark:bg-gray-700 dark:border-gray-600" 
+                                       id="new-cust-phone">
+                            </div>
+                            <div class="form-control">
+                                <label class="label">
+                                    <span class="label-text">الشركة</span>
+                                </label>
+                                <input type="text" placeholder="اسم الشركة" 
+                                       class="input input-bordered dark:bg-gray-700 dark:border-gray-600" 
+                                       id="new-cust-company">
+                            </div>
+                        </div>
+                        
+                        <div class="form-control">
+                            <label class="label">
+                                <span class="label-text">العنوان</span>
+                            </label>
+                            <textarea class="textarea textarea-bordered dark:bg-gray-700 dark:border-gray-600 h-20" 
+                                      placeholder="العنوان الكامل" id="new-cust-address"></textarea>
+                        </div>
+                        
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div class="form-control">
+                                <label class="label">
+                                    <span class="label-text">نوع العميل</span>
+                                </label>
+                                <select class="select select-bordered dark:bg-gray-700 dark:border-gray-600" id="new-cust-type">
+                                    <option value="regular">عادي</option>
+                                    <option value="vip">VIP</option>
+                                </select>
+                            </div>
+                            <div class="form-control">
+                                <label class="label">
+                                    <span class="label-text">حد الائتمان</span>
+                                </label>
+                                <input type="number" placeholder="حد الائتمان" 
+                                       class="input input-bordered dark:bg-gray-700 dark:border-gray-600" 
+                                       id="new-cust-credit" value="0">
+                            </div>
+                        </div>
+                        
+                        <div class="form-control">
+                            <label class="label">
+                                <span class="label-text">ملاحظات</span>
+                            </label>
+                            <textarea class="textarea textarea-bordered dark:bg-gray-700 dark:border-gray-600 h-16" 
+                                      placeholder="ملاحظات إضافية" id="new-cust-notes"></textarea>
+                        </div>
+                    </div>
+                    
+                    <div class="modal-action">
+                        <button type="button" class="btn btn-ghost" onclick="closeModal('addCustomerModal')">إلغاء</button>
+                        <button type="submit" class="btn btn-primary">حفظ العميل</button>
+                    </div>
+                </form>
+            </div>
+        </dialog>
+    `;
+}
+
+function initializeCustomersPage() {
+    updateCustomersStats();
+    populateCustomersTable();
+    setupCustomerForm();
+}
+
+function updateCustomersStats() {
+    const totalCustomers = appData.customers.length;
+    const activeCustomers = appData.customers.filter(c => c.status === 'active').length;
+    const totalBalance = appData.customers.reduce((sum, customer) => sum + (customer.balance || 0), 0);
+    
+    document.getElementById('total-customers').textContent = totalCustomers;
+    document.getElementById('active-customers').textContent = activeCustomers;
+    document.getElementById('total-balance').textContent = formatCurrency(totalBalance);
+}
+
+function populateCustomersTable() {
+    const tbody = document.getElementById('customers-table-body');
+    if (!tbody) return;
+    
+    tbody.innerHTML = appData.customers.map(customer => `
+        <tr>
+            <td>
+                <div class="flex items-center gap-3">
+                    <div class="avatar">
+                        <div class="w-10 h-10 rounded-full bg-primary text-white flex items-center justify-center">
+                            <span>${customer.name.charAt(0)}</span>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="font-bold">${customer.name}</div>
+                        <div class="text-sm text-gray-500">${customer.type === 'vip' ? 'VIP' : 'عادي'}</div>
+                    </div>
+                </div>
+            </td>
+            <td>
+                <div class="text-sm">
+                    <div>${customer.email}</div>
+                    <div class="text-gray-500">${customer.phone}</div>
+                </div>
+            </td>
+            <td>${customer.company || '-'}</td>
+            <td>
+                ${customer.status === 'active' ? 
+                    '<span class="badge badge-success">نشط</span>' : 
+                    '<span class="badge badge-warning">غير نشط</span>'}
+            </td>
+            <td>
+                <div class="font-semibold ${customer.balance > 0 ? 'text-success' : 'text-gray-500'}">
+                    ${formatCurrency(customer.balance || 0)}
+                </div>
+                <div class="text-xs text-gray-500">حد: ${formatCurrency(customer.creditLimit || 0)}</div>
+            </td>
+            <td>
+                <div class="text-sm">${formatDate(customer.lastInteraction)}</div>
+                <div class="text-xs text-gray-500">منذ ${getTimeAgo(customer.lastInteraction)}</div>
+            </td>
+            <td>
+                <div class="flex gap-1">
+                    <button class="btn btn-ghost btn-xs" onclick="viewCustomer('${customer.id}')">
+                        <i class="bi bi-eye"></i>
+                    </button>
+                    <button class="btn btn-ghost btn-xs" onclick="editCustomer('${customer.id}')">
+                        <i class="bi bi-pencil"></i>
+                    </button>
+                    <button class="btn btn-ghost btn-xs text-error" onclick="deleteCustomer('${customer.id}')">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </div>
+            </td>
+        </tr>
+    `).join('');
+}
+
+function setupCustomerForm() {
+    const form = document.getElementById('addCustomerForm');
+    if (form) {
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+            addNewCustomer();
+        });
+    }
+}
+
+function addNewCustomer() {
+    const name = document.getElementById('new-cust-name').value.trim();
+    const email = document.getElementById('new-cust-email').value.trim();
+    const phone = document.getElementById('new-cust-phone').value.trim();
+    const company = document.getElementById('new-cust-company').value.trim();
+    const address = document.getElementById('new-cust-address').value.trim();
+    const type = document.getElementById('new-cust-type').value;
+    const creditLimit = parseFloat(document.getElementById('new-cust-credit').value) || 0;
+    const notes = document.getElementById('new-cust-notes').value.trim();
+    
+    if (!name || !email) {
+        showToast('الاسم والبريد الإلكتروني مطلوبان', 'error');
+        return;
+    }
+    
+    const newCustomer = {
+        id: generateId('cust'),
+        name,
+        email,
+        phone,
+        company,
+        address,
+        type,
+        status: 'active',
+        creditLimit,
+        balance: 0,
+        notes,
+        createdAt: new Date().toISOString(),
+        lastInteraction: new Date().toISOString()
+    };
+    
+    appData.customers.push(newCustomer);
+    savePersistentData();
+    populateCustomersTable();
+    updateCustomersStats();
+    updateSidebarStats();
+    
+    closeModal('addCustomerModal');
+    showToast('تم إضافة العميل بنجاح', 'success');
+    
+    // إعادة تعيين النموذج
+    document.getElementById('addCustomerForm').reset();
+}
+
+function filterCustomers() {
+    const searchTerm = document.getElementById('customer-search').value.toLowerCase();
+    const statusFilter = document.getElementById('customer-status').value;
+    const typeFilter = document.getElementById('customer-type').value;
+    
+    const filteredCustomers = appData.customers.filter(customer => {
+        const matchesSearch = !searchTerm || 
+            customer.name.toLowerCase().includes(searchTerm) ||
+            customer.email.toLowerCase().includes(searchTerm) ||
+            customer.phone.includes(searchTerm) ||
+            (customer.company && customer.company.toLowerCase().includes(searchTerm));
+        
+        const matchesStatus = !statusFilter || customer.status === statusFilter;
+        const matchesType = !typeFilter || customer.type === typeFilter;
+        
+        return matchesSearch && matchesStatus && matchesType;
+    });
+    
+    const tbody = document.getElementById('customers-table-body');
+    if (tbody) {
+        tbody.innerHTML = filteredCustomers.map(customer => `
+            <tr>
+                <td>
+                    <div class="flex items-center gap-3">
+                        <div class="avatar">
+                            <div class="w-10 h-10 rounded-full bg-primary text-white flex items-center justify-center">
+                                <span>${customer.name.charAt(0)}</span>
+                            </div>
+                        </div>
+                        <div>
+                            <div class="font-bold">${customer.name}</div>
+                            <div class="text-sm text-gray-500">${customer.type === 'vip' ? 'VIP' : 'عادي'}</div>
+                        </div>
+                    </div>
+                </td>
+                <td>
+                    <div class="text-sm">
+                        <div>${customer.email}</div>
+                        <div class="text-gray-500">${customer.phone}</div>
+                    </div>
+                </td>
+                <td>${customer.company || '-'}</td>
+                <td>
+                    ${customer.status === 'active' ? 
+                        '<span class="badge badge-success">نشط</span>' : 
+                        '<span class="badge badge-warning">غير نشط</span>'}
+                </td>
+                <td>
+                    <div class="font-semibold ${customer.balance > 0 ? 'text-success' : 'text-gray-500'}">
+                        ${formatCurrency(customer.balance || 0)}
+                    </div>
+                </td>
+                <td>
+                    <div class="text-sm">${formatDate(customer.lastInteraction)}</div>
+                </td>
+                <td>
+                    <div class="flex gap-1">
+                        <button class="btn btn-ghost btn-xs" onclick="viewCustomer('${customer.id}')">
+                            <i class="bi bi-eye"></i>
+                        </button>
+                        <button class="btn btn-ghost btn-xs" onclick="editCustomer('${customer.id}')">
+                            <i class="bi bi-pencil"></i>
+                        </button>
+                    </div>
+                </td>
+            </tr>
+        `).join('');
+    }
+    
+    showToast(`تم العثور على ${filteredCustomers.length} عميل`, 'info');
+}
+
+function viewCustomer(customerId) {
+    const customer = appData.customers.find(c => c.id === customerId);
+    if (customer) {
+        showToast(`عرض تفاصيل العميل: ${customer.name}`, 'info');
+        // في التطبيق الكامل، نفتح نموذج عرض التفاصيل
+    }
+}
+
+function editCustomer(customerId) {
+    const customer = appData.customers.find(c => c.id === customerId);
+    if (customer) {
+        showToast(`تعديل العميل: ${customer.name}`, 'info');
+        // في التطبيق الكامل، نفتح نموذج التعديل
+    }
+}
+
+function deleteCustomer(customerId) {
+    const customer = appData.customers.find(c => c.id === customerId);
+    if (customer && confirm(`هل أنت متأكد من حذف العميل "${customer.name}"؟`)) {
+        appData.customers = appData.customers.filter(c => c.id !== customerId);
+        savePersistentData();
+        populateCustomersTable();
+        updateCustomersStats();
+        updateSidebarStats();
+        showToast('تم حذف العميل بنجاح', 'success');
+    }
+}
+
+function exportCustomers() {
+    const dataStr = JSON.stringify(appData.customers, null, 2);
+    const dataBlob = new Blob([dataStr], { type: 'application/json' });
+    
+    const url = URL.createObjectURL(dataBlob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `customers_export_${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    
+    showToast('تم تصدير بيانات العملاء بنجاح', 'success');
+}
+
+function getTimeAgo(dateString) {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now - date;
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+    
+    if (diffMins < 60) {
+        return `${diffMins} دقيقة`;
+    } else if (diffHours < 24) {
+        return `${diffHours} ساعة`;
+    } else {
+        return `${diffDays} يوم`;
+    }
+}
+
+// ========== دوال إدارة الفواتير ==========
+// سيتم استكمال باقي الدوال في الأجزاء التالية...
+
+// نهاية الجزء الثاني من الكود
+</script>
+
+<script>
+// ========== دوال إدارة الفواتير ==========
+function renderInvoices() {
+    return `
+        <div class="fade-in">
+            <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-6 gap-4">
+                <div>
+                    <h1 class="text-2xl font-bold">إدارة الفواتير</h1>
+                    <p class="text-gray-600 dark:text-gray-400">إنشاء وإدارة وتتبع الفواتير</p>
+                </div>
+                <div class="flex gap-2">
+                    <button class="btn btn-outline" onclick="exportInvoices()">
+                        <i class="bi bi-download"></i> تصدير
+                    </button>
+                    <button class="btn btn-primary" onclick="showModal('createInvoiceModal')">
+                        <i class="bi bi-plus-lg"></i> فاتورة جديدة
+                    </button>
+                </div>
+            </div>
+
+            <!-- إحصائيات الفواتير -->
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                <div class="stat bg-white dark:bg-gray-800 rounded-lg border dark:border-gray-700">
+                    <div class="stat-figure text-primary">
+                        <i class="bi bi-receipt text-2xl"></i>
+                    </div>
+                    <div class="stat-title">إجمالي الفواتير</div>
+                    <div class="stat-value text-primary" id="stat-total-invoices">0</div>
+                </div>
+                <div class="stat bg-white dark:bg-gray-800 rounded-lg border dark:border-gray-700">
+                    <div class="stat-figure text-success">
+                        <i class="bi bi-currency-dollar text-2xl"></i>
+                    </div>
+                    <div class="stat-title">المدفوعة</div>
+                    <div class="stat-value text-success" id="stat-paid-invoices">0</div>
+                </div>
+                <div class="stat bg-white dark:bg-gray-800 rounded-lg border dark:border-gray-700">
+                    <div class="stat-figure text-warning">
+                        <i class="bi bi-clock text-2xl"></i>
+                    </div>
+                    <div class="stat-title">قيد الانتظار</div>
+                    <div class="stat-value text-warning" id="stat-pending-invoices">0</div>
+                </div>
+                <div class="stat bg-white dark:bg-gray-800 rounded-lg border dark:border-gray-700">
+                    <div class="stat-figure text-error">
+                        <i class="bi bi-exclamation-triangle text-2xl"></i>
+                    </div>
+                    <div class="stat-title">متأخرة</div>
+                    <div class="stat-value text-error" id="stat-overdue-invoices">0</div>
+                </div>
+            </div>
+
+            <!-- أدوات البحث والتصفية -->
+            <div class="card bg-white dark:bg-gray-800 shadow-sm border dark:border-gray-700 mb-6">
+                <div class="card-body">
+                    <div class="flex flex-col lg:flex-row gap-4 items-end">
+                        <div class="form-control flex-1">
+                            <label class="label">
+                                <span class="label-text">بحث في الفواتير</span>
+                            </label>
+                            <input type="text" placeholder="ابحث برقم الفاتورة أو اسم العميل..." 
+                                   class="input input-bordered dark:bg-gray-700 dark:border-gray-600" 
+                                   id="invoice-search" />
+                        </div>
+                        <div class="form-control">
+                            <label class="label">
+                                <span class="label-text">الحالة</span>
+                            </label>
+                            <select class="select select-bordered dark:bg-gray-700 dark:border-gray-600" id="invoice-status-filter">
+                                <option value="">جميع الحالات</option>
+                                <option value="paid">مدفوعة</option>
+                                <option value="pending">قيد الانتظار</option>
+                                <option value="overdue">متأخرة</option>
+                                <option value="draft">مسودة</option>
+                            </select>
+                        </div>
+                        <div class="form-control">
+                            <label class="label">
+                                <span class="label-text">من تاريخ</span>
+                            </label>
+                            <input type="date" class="input input-bordered dark:bg-gray-700 dark:border-gray-600" id="invoice-date-from" />
+                        </div>
+                        <div class="form-control">
+                            <label class="label">
+                                <span class="label-text">إلى تاريخ</span>
+                            </label>
+                            <input type="date" class="input input-bordered dark:bg-gray-700 dark:border-gray-600" id="invoice-date-to" />
+                        </div>
+                        <button class="btn btn-primary" onclick="filterInvoices()">
+                            <i class="bi bi-funnel"></i> تطبيق
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- جدول الفواتير -->
+            <div class="card bg-white dark:bg-gray-800 shadow-sm border dark:border-gray-700">
+                <div class="card-body p-0">
+                    <div class="overflow-x-auto">
+                        <table class="table table-zebra">
+                            <thead>
+                                <tr class="bg-gray-50 dark:bg-gray-700">
+                                    <th>رقم الفاتورة</th>
+                                    <th>العميل</th>
+                                    <th>التاريخ</th>
+                                    <th>المبلغ</th>
+                                    <th>الحالة</th>
+                                    <th>تاريخ الاستحقاق</th>
+                                    <th>الإجراءات</th>
+                                </tr>
+                            </thead>
+                            <tbody id="invoices-table-body">
+                                <!-- سيتم تعبئته ديناميكياً -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal إنشاء فاتورة -->
+        <dialog id="createInvoiceModal" class="modal">
+            <div class="modal-box max-w-6xl">
+                <h3 class="font-bold text-lg mb-4">إنشاء فاتورة جديدة</h3>
+                <form id="createInvoiceForm">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                        <div class="form-control">
+                            <label class="label">
+                                <span class="label-text">اختر العميل</span>
+                            </label>
+                            <select class="select select-bordered dark:bg-gray-700 dark:border-gray-600" id="invoice-customer" required>
+                                <option value="">-- اختر عميل --</option>
+                                ${appData.customers.map(c => `<option value="${c.id}">${c.name} - ${c.company || ''}</option>`).join('')}
+                            </select>
+                        </div>
+                        <div class="form-control">
+                            <label class="label">
+                                <span class="label-text">تاريخ الفاتورة</span>
+                            </label>
+                            <input type="date" class="input input-bordered dark:bg-gray-700 dark:border-gray-600" 
+                                   id="invoice-date" value="${new Date().toISOString().split('T')[0]}" />
+                        </div>
+                    </div>
+
+                    <div class="border rounded-lg p-4 mb-4 dark:border-gray-600">
+                        <div class="flex justify-between items-center mb-4">
+                            <h4 class="font-semibold">بنود الفاتورة</h4>
+                            <button type="button" class="btn btn-ghost btn-sm" onclick="addInvoiceItem()">
+                                <i class="bi bi-plus"></i> إضافة بند جديد
+                            </button>
+                        </div>
+                        <div class="space-y-3" id="invoice-items">
+                            <!-- العناصر تضاف هنا -->
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <div class="form-control">
+                            <label class="label">
+                                <span class="label-text">ملاحظات</span>
+                            </label>
+                            <textarea class="textarea textarea-bordered dark:bg-gray-700 dark:border-gray-600 h-32" 
+                                      placeholder="ملاحظات إضافية للفاتورة..." id="invoice-notes"></textarea>
+                        </div>
+                        
+                        <div class="space-y-3">
+                            <div class="flex justify-between items-center border-b dark:border-gray-600 pb-2">
+                                <span>المجموع الفرعي:</span>
+                                <span class="font-semibold" id="sub-total">0.00 ${appData.settings.financial.currency}</span>
+                            </div>
+                            
+                            <div class="flex justify-between items-center">
+                                <span>الضريبة (%):</span>
+                                <input type="number" class="input input-bordered w-20 dark:bg-gray-700 dark:border-gray-600" 
+                                       id="tax-rate" value="${appData.settings.financial.taxRate}" min="0" step="0.1" />
+                            </div>
+                            
+                            <div class="flex justify-between items-center border-b dark:border-gray-600 pb-2">
+                                <span>قيمة الضريبة:</span>
+                                <span class="font-semibold" id="tax-amount">0.00 ${appData.settings.financial.currency}</span>
+                            </div>
+                            
+                            <div class="flex justify-between items-center border-b dark:border-gray-600 pb-2">
+                                <span>الخصم:</span>
+                                <div class="flex gap-2">
+                                    <input type="number" class="input input-bordered w-24 dark:bg-gray-700 dark:border-gray-600" 
+                                           id="discount-amount" value="0" min="0" step="0.01" />
+                                    <select class="select select-bordered dark:bg-gray-700 dark:border-gray-600" id="discount-type">
+                                        <option value="fixed">${appData.settings.financial.currency}</option>
+                                        <option value="percentage">%</option>
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <div class="flex justify-between items-center text-lg font-bold border-t dark:border-gray-600 pt-2">
+                                <span>الإجمالي:</span>
+                                <span id="grand-total">0.00 ${appData.settings.financial.currency}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="modal-action">
+                        <button type="button" class="btn btn-ghost" onclick="closeModal('createInvoiceModal')">إلغاء</button>
+                        <button type="submit" class="btn btn-primary">حفظ الفاتورة</button>
+                    </div>
+                </form>
+            </div>
+        </dialog>
+    `;
+}
+
+function initializeInvoicesPage() {
+    updateInvoiceStats();
+    populateInvoiceTable();
+    setupInvoiceForm();
+    
+    // إضافة عنصر افتراضي
+    const itemsContainer = document.getElementById('invoice-items');
+    if (itemsContainer) {
+        itemsContainer.innerHTML = '';
+        addInvoiceItem();
+    }
+}
+
+function updateInvoiceStats() {
+    const totalInvoices = appData.invoices.length;
+    const paidInvoices = appData.invoices.filter(i => i.status === 'paid').length;
+    const pendingInvoices = appData.invoices.filter(i => i.status === 'pending').length;
+    const overdueInvoices = appData.invoices.filter(i => i.status === 'overdue').length;
+    
+    document.getElementById('stat-total-invoices').textContent = totalInvoices;
+    document.getElementById('stat-paid-invoices').textContent = paidInvoices;
+    document.getElementById('stat-pending-invoices').textContent = pendingInvoices;
+    document.getElementById('stat-overdue-invoices').textContent = overdueInvoices;
+}
+
+function populateInvoiceTable() {
+    const tbody = document.getElementById('invoices-table-body');
+    if (!tbody) return;
+    
+    tbody.innerHTML = appData.invoices.map(invoice => {
+        const customer = appData.customers.find(c => c.id === invoice.customerId) || {};
+        
+        return `
+            <tr>
+                <td>
+                    <div class="font-mono font-bold">${invoice.no}</div>
+                    <div class="text-xs text-gray-500">#${invoice.id.slice(-6)}</div>
+                </td>
+                <td>
+                    <div class="font-medium">${customer.name || 'عميل محذوف'}</div>
+                    <div class="text-xs text-gray-500">${customer.company || ''}</div>
+                </td>
+                <td>
+                    <div class="text-sm">${formatDate(invoice.date)}</div>
+                </td>
+                <td>
+                    <div class="font-semibold">${formatCurrency(invoice.total || 0)}</div>
+                </td>
+                <td>
+                    ${invoice.status === 'paid' ? 
+                        '<span class="badge badge-success">مدفوعة</span>' : 
+                     invoice.status === 'pending' ? 
+                        '<span class="badge badge-warning">قيد الانتظار</span>' : 
+                     invoice.status === 'overdue' ? 
+                        '<span class="badge badge-error">متأخرة</span>' : 
+                        '<span class="badge badge-info">مسودة</span>'}
+                </td>
+                <td>
+                    <div class="text-sm">${invoice.dueDate ? formatDate(invoice.dueDate) : '-'}</div>
+                </td>
+                <td>
+                    <div class="flex gap-1">
+                        <button class="btn btn-ghost btn-xs" onclick="viewInvoice('${invoice.id}')">
+                            <i class="bi bi-eye"></i>
+                        </button>
+                        <button class="btn btn-ghost btn-xs" onclick="editInvoice('${invoice.id}')">
+                            <i class="bi bi-pencil"></i>
+                        </button>
+                        <button class="btn btn-ghost btn-xs" onclick="printInvoice('${invoice.id}')">
+                            <i class="bi bi-printer"></i>
+                        </button>
+                        <button class="btn btn-ghost btn-xs text-error" onclick="deleteInvoice('${invoice.id}')">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </div>
+                </td>
+            </tr>
+        `;
+    }).join('');
+}
+
+function setupInvoiceForm() {
+    const form = document.getElementById('createInvoiceForm');
+    if (form) {
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+            saveNewInvoice();
+        });
+    }
+    
+    // إضافة مستمعين لحساب المبالغ تلقائياً
+    const taxRateInput = document.getElementById('tax-rate');
+    const discountAmountInput = document.getElementById('discount-amount');
+    
+    if (taxRateInput) {
+        taxRateInput.addEventListener('input', calculateInvoiceTotals);
+    }
+    if (discountAmountInput) {
+        discountAmountInput.addEventListener('input', calculateInvoiceTotals);
+    }
+}
+
+function addInvoiceItem() {
+    const itemsContainer = document.getElementById('invoice-items');
+    if (!itemsContainer) return;
+    
+    const itemId = 'item_' + Date.now();
+    const row = document.createElement('div');
+    row.className = 'flex gap-2 items-center invoice-item-row';
+    row.innerHTML = `
+        <div class="flex-1">
+            <input type="text" placeholder="وصف البند" 
+                   class="input input-bordered w-full dark:bg-gray-700 dark:border-gray-600" 
+                   data-field="description">
+        </div>
+        <div class="w-20">
+            <input type="number" placeholder="الكمية" 
+                   class="input input-bordered w-full dark:bg-gray-700 dark:border-gray-600" 
+                   value="1" min="1" data-field="quantity">
+        </div>
+        <div class="w-32">
+            <input type="number" placeholder="السعر" 
+                   class="input input-bordered w-full dark:bg-gray-700 dark:border-gray-600" 
+                   value="0" step="0.01" data-field="price">
+        </div>
+        <div class="w-32 text-center font-semibold item-total">
+            ${formatCurrency(0)}
+        </div>
+        <button type="button" class="btn btn-ghost btn-sm text-error btn-remove-item">
+            <i class="bi bi-trash"></i>
+        </button>
+    `;
+    itemsContainer.appendChild(row);
+    
+    // إضافة مستمعين للأحداث
+    const quantityInput = row.querySelector('[data-field="quantity"]');
+    const priceInput = row.querySelector('[data-field="price"]');
+    const removeButton = row.querySelector('.btn-remove-item');
+    
+    quantityInput.addEventListener('input', calculateInvoiceTotals);
+    priceInput.addEventListener('input', calculateInvoiceTotals);
+    removeButton.addEventListener('click', function() {
+        row.remove();
+        calculateInvoiceTotals();
+    });
+    
+    calculateInvoiceTotals();
+}
+
+function calculateInvoiceTotals() {
+    const items = document.querySelectorAll('.invoice-item-row');
+    let subtotal = 0;
+    
+    items.forEach(row => {
+        const quantity = parseFloat(row.querySelector('[data-field="quantity"]').value) || 0;
+        const price = parseFloat(row.querySelector('[data-field="price"]').value) || 0;
+        const total = quantity * price;
+        
+        const totalElement = row.querySelector('.item-total');
+        if (totalElement) {
+            totalElement.textContent = formatCurrency(total);
+        }
+        
+        subtotal += total;
+    });
+    
+    // حساب الضريبة
+    const taxRate = parseFloat(document.getElementById('tax-rate').value) || 0;
+    const taxAmount = subtotal * (taxRate / 100);
+    
+    // حساب الخصم
+    const discountAmount = parseFloat(document.getElementById('discount-amount').value) || 0;
+    const discountType = document.getElementById('discount-type').value;
+    let discountValue = 0;
+    
+    if (discountType === 'percentage') {
+        discountValue = subtotal * (discountAmount / 100);
+    } else {
+        discountValue = discountAmount;
+    }
+    
+    // حساب الإجمالي
+    const grandTotal = subtotal + taxAmount - discountValue;
+    
+    // تحديث القيم المعروضة
+    document.getElementById('sub-total').textContent = formatCurrency(subtotal);
+    document.getElementById('tax-amount').textContent = formatCurrency(taxAmount);
+    document.getElementById('grand-total').textContent = formatCurrency(grandTotal);
+}
+
+function saveNewInvoice() {
+    const customerId = document.getElementById('invoice-customer').value;
+    const date = document.getElementById('invoice-date').value;
+    const notes = document.getElementById('invoice-notes').value;
+    
+    if (!customerId) {
+        showToast('يرجى اختيار عميل', 'error');
+        return;
+    }
+    
+    // جمع عناصر الفاتورة
+    const items = [];
+    const itemRows = document.querySelectorAll('.invoice-item-row');
+    
+    itemRows.forEach(row => {
+        const description = row.querySelector('[data-field="description"]').value.trim();
+        const quantity = parseFloat(row.querySelector('[data-field="quantity"]').value) || 0;
+        const price = parseFloat(row.querySelector('[data-field="price"]').value) || 0;
+        
+        if (description && quantity > 0 && price >= 0) {
+            items.push({
+                id: generateId('item'),
+                description,
+                quantity,
+                price,
+                total: quantity * price
+            });
+        }
+    });
+    
+    if (items.length === 0) {
+        showToast('يرجى إضافة عنصر واحد على الأقل', 'error');
+        return;
+    }
+    
+    // حساب المبالغ
+    const subtotal = items.reduce((sum, item) => sum + item.total, 0);
+    const taxRate = parseFloat(document.getElementById('tax-rate').value) || 0;
+    const taxAmount = subtotal * (taxRate / 100);
+    
+    const discountAmount = parseFloat(document.getElementById('discount-amount').value) || 0;
+    const discountType = document.getElementById('discount-type').value;
+    let discountValue = 0;
+    
+    if (discountType === 'percentage') {
+        discountValue = subtotal * (discountAmount / 100);
+    } else {
+        discountValue = discountAmount;
+    }
+    
+    const total = subtotal + taxAmount - discountValue;
+    
+    // إنشاء الفاتورة
+    const newInvoice = {
+        id: generateId('inv'),
+        no: appData.settings.financial.invoicePrefix + (appData.invoices.length + 1).toString().padStart(4, '0'),
+        customerId,
+        date: date || new Date().toISOString().split('T')[0],
+        dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 30 يوم من الآن
+        items,
+        subtotal,
+        tax: taxAmount,
+        discount: discountValue,
+        total,
+        status: 'pending',
+        notes,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+    };
+    
+    appData.invoices.push(newInvoice);
+    savePersistentData();
+    populateInvoiceTable();
+    updateInvoiceStats();
+    updateSidebarStats();
+    
+    closeModal('createInvoiceModal');
+    showToast('تم إنشاء الفاتورة بنجاح', 'success');
+    
+    // إعادة تعيين النموذج
+    document.getElementById('createInvoiceForm').reset();
+    const itemsContainer = document.getElementById('invoice-items');
+    if (itemsContainer) {
+        itemsContainer.innerHTML = '';
+        addInvoiceItem();
+    }
+}
+
+function filterInvoices() {
+    const searchTerm = document.getElementById('invoice-search').value.toLowerCase();
+    const statusFilter = document.getElementById('invoice-status-filter').value;
+    const dateFrom = document.getElementById('invoice-date-from').value;
+    const dateTo = document.getElementById('invoice-date-to').value;
+    
+    const filteredInvoices = appData.invoices.filter(invoice => {
+        const customer = appData.customers.find(c => c.id === invoice.customerId) || {};
+        const matchesSearch = !searchTerm || 
+            invoice.no.toLowerCase().includes(searchTerm) ||
+            customer.name.toLowerCase().includes(searchTerm);
+        
+        const matchesStatus = !statusFilter || invoice.status === statusFilter;
+        
+        const matchesDate = (!dateFrom || invoice.date >= dateFrom) && 
+                           (!dateTo || invoice.date <= dateTo);
+        
+        return matchesSearch && matchesStatus && matchesDate;
+    });
+    
+    const tbody = document.getElementById('invoices-table-body');
+    if (tbody) {
+        tbody.innerHTML = filteredInvoices.map(invoice => {
+            const customer = appData.customers.find(c => c.id === invoice.customerId) || {};
+            
+            return `
+                <tr>
+                    <td>
+                        <div class="font-mono font-bold">${invoice.no}</div>
+                    </td>
+                    <td>${customer.name || 'عميل محذوف'}</td>
+                    <td>${formatDate(invoice.date)}</td>
+                    <td>${formatCurrency(invoice.total || 0)}</td>
+                    <td>
+                        ${invoice.status === 'paid' ? 
+                            '<span class="badge badge-success">مدفوعة</span>' : 
+                         invoice.status === 'pending' ? 
+                            '<span class="badge badge-warning">قيد الانتظار</span>' : 
+                         invoice.status === 'overdue' ? 
+                            '<span class="badge badge-error">متأخرة</span>' : 
+                            '<span class="badge badge-info">مسودة</span>'}
+                    </td>
+                    <td>${invoice.dueDate ? formatDate(invoice.dueDate) : '-'}</td>
+                    <td>
+                        <div class="flex gap-1">
+                            <button class="btn btn-ghost btn-xs" onclick="viewInvoice('${invoice.id}')">
+                                <i class="bi bi-eye"></i>
+                            </button>
+                            <button class="btn btn-ghost btn-xs" onclick="printInvoice('${invoice.id}')">
+                                <i class="bi bi-printer"></i>
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+    }
+    
+    showToast(`تم العثور على ${filteredInvoices.length} فاتورة`, 'info');
+}
+
+function viewInvoice(invoiceId) {
+    const invoice = appData.invoices.find(i => i.id === invoiceId);
+    if (invoice) {
+        showToast(`عرض فاتورة: ${invoice.no}`, 'info');
+        // في التطبيق الكامل، نفتح نموذج عرض التفاصيل
+    }
+}
+
+function editInvoice(invoiceId) {
+    const invoice = appData.invoices.find(i => i.id === invoiceId);
+    if (invoice) {
+        showToast(`تعديل فاتورة: ${invoice.no}`, 'info');
+        // في التطبيق الكامل، نفتح نموذج التعديل
+    }
+}
+
+function printInvoice(invoiceId) {
+    const invoice = appData.invoices.find(i => i.id === invoiceId);
+    if (invoice) {
+        const customer = appData.customers.find(c => c.id === invoice.customerId) || {};
+        
+        const printWindow = window.open('', '_blank');
+        printWindow.document.write(`
+            <!DOCTYPE html>
+            <html dir="rtl">
+            <head>
+                <title>فاتورة ${invoice.no}</title>
+                <style>
+                    body { font-family: Arial, sans-serif; margin: 20px; }
+                    .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #333; padding-bottom: 20px; }
+                    .company-info { margin-bottom: 30px; }
+                    .invoice-details { margin-bottom: 30px; }
+                    table { width: 100%; border-collapse: collapse; margin-bottom: 30px; }
+                    th, td { border: 1px solid #ddd; padding: 8px; text-align: right; }
+                    th { background-color: #f5f5f5; }
+                    .totals { float: left; width: 300px; }
+                    .footer { margin-top: 50px; text-align: center; font-size: 12px; color: #666; }
+                </style>
+            </head>
+            <body>
+                <div class="header">
+                    <h1>فاتورة ${invoice.no}</h1>
+                </div>
+                
+                <div class="company-info">
+                    <h3>${appData.settings.company.name}</h3>
+                    <p>${appData.settings.company.address}</p>
+                    <p>هاتف: ${appData.settings.company.phone} | بريد: ${appData.settings.company.email}</p>
+                </div>
+                
+                <div class="invoice-details">
+                    <p><strong>العميل:</strong> ${customer.name}</p>
+                    <p><strong>التاريخ:</strong> ${formatDate(invoice.date)}</p>
+                    <p><strong>تاريخ الاستحقاق:</strong> ${invoice.dueDate ? formatDate(invoice.dueDate) : '-'}</p>
+                </div>
+                
+                <table>
+                    <thead>
+                        <tr>
+                            <th>الوصف</th>
+                            <th>الكمية</th>
+                            <th>السعر</th>
+                            <th>المجموع</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${invoice.items.map(item => `
+                            <tr>
+                                <td>${item.description}</td>
+                                <td>${item.quantity}</td>
+                                <td>${formatCurrency(item.price)}</td>
+                                <td>${formatCurrency(item.total)}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+                
+                <div class="totals">
+                    <p><strong>المجموع الفرعي:</strong> ${formatCurrency(invoice.subtotal)}</p>
+                    <p><strong>الضريبة:</strong> ${formatCurrency(invoice.tax)}</p>
+                    ${invoice.discount > 0 ? `<p><strong>الخصم:</strong> ${formatCurrency(invoice.discount)}</p>` : ''}
+                    <p><strong>الإجمالي:</strong> ${formatCurrency(invoice.total)}</p>
+                </div>
+                
+                <div class="footer">
+                    <p>${appData.settings.financial.invoiceTerms}</p>
+                    <p>شكراً لتعاملكم مع ${appData.settings.company.name}</p>
+                </div>
+            </body>
+            </html>
+        `);
+        
+        printWindow.document.close();
+        printWindow.print();
+    }
+}
+
+function deleteInvoice(invoiceId) {
+    const invoice = appData.invoices.find(i => i.id === invoiceId);
+    if (invoice && confirm(`هل أنت متأكد من حذف الفاتورة "${invoice.no}"؟`)) {
+        appData.invoices = appData.invoices.filter(i => i.id !== invoiceId);
+        savePersistentData();
+        populateInvoiceTable();
+        updateInvoiceStats();
+        updateSidebarStats();
+        showToast('تم حذف الفاتورة بنجاح', 'success');
+    }
+}
+
+function exportInvoices() {
+    const dataStr = JSON.stringify(appData.invoices, null, 2);
+    const dataBlob = new Blob([dataStr], { type: 'application/json' });
+    
+    const url = URL.createObjectURL(dataBlob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `invoices_export_${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    
+    showToast('تم تصدير بيانات الفواتير بنجاح', 'success');
+}
+
+// ========== دوال إدارة المخزون ==========
+// سيتم استكمال باقي الدوال في الأجزاء التالية...
+
+// نهاية الجزء الثالث من الكود
+</script>
+
+<script>
+// ========== دوال إدارة المخزون ==========
+function renderInventory() {
+    return `
+        <div class="fade-in">
+            <div class="flex justify-between items-center mb-6">
+                <div>
+                    <h1 class="text-2xl font-bold">إدارة المخزون</h1>
+                    <p class="text-gray-600 dark:text-gray-400">تتبع وإدارة المخزون</p>
+                </div>
+                <div class="flex gap-2">
+                    <button class="btn btn-outline" onclick="exportInventory()">
+                        <i class="bi bi-download"></i> تصدير
+                    </button>
+                    <button class="btn btn-primary" onclick="showModal('addProductModal')">
+                        <i class="bi bi-plus-lg"></i> إضافة منتج
+                    </button>
+                </div>
+            </div>
+
+            <!-- إحصائيات المخزون -->
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                <div class="stat bg-white dark:bg-gray-800 rounded-lg border dark:border-gray-700">
+                    <div class="stat-figure text-primary">
+                        <i class="bi bi-box-seam text-2xl"></i>
+                    </div>
+                    <div class="stat-title">إجمالي المنتجات</div>
+                    <div class="stat-value text-primary" id="stat-total-products">0</div>
+                </div>
+                <div class="stat bg-white dark:bg-gray-800 rounded-lg border dark:border-gray-700">
+                    <div class="stat-figure text-success">
+                        <i class="bi bi-check-circle text-2xl"></i>
+                    </div>
+                    <div class="stat-title">في المخزون</div>
+                    <div class="stat-value text-success" id="stat-in-stock">0</div>
+                </div>
+                <div class="stat bg-white dark:bg-gray-800 rounded-lg border dark:border-gray-700">
+                    <div class="stat-figure text-warning">
+                        <i class="bi bi-exclamation-triangle text-2xl"></i>
+                    </div>
+                    <div class="stat-title">منخفض المخزون</div>
+                    <div class="stat-value text-warning" id="stat-low-stock">0</div>
+                </div>
+                <div class="stat bg-white dark:bg-gray-800 rounded-lg border dark:border-gray-700">
+                    <div class="stat-figure text-error">
+                        <i class="bi bi-x-circle text-2xl"></i>
+                    </div>
+                    <div class="stat-title">نفذ من المخزون</div>
+                    <div class="stat-value text-error" id="stat-out-of-stock">0</div>
+                </div>
+            </div>
+
+            <!-- أدوات البحث والتصفية -->
+            <div class="card bg-white dark:bg-gray-800 shadow-sm border dark:border-gray-700 mb-6">
+                <div class="card-body">
+                    <div class="flex flex-col lg:flex-row gap-4">
+                        <div class="form-control flex-1">
+                            <input type="text" placeholder="ابحث عن منتج بالاسم، الرمز، الفئة..." 
+                                   class="input input-bordered dark:bg-gray-700 dark:border-gray-600" 
+                                   id="product-search" />
+                        </div>
+                        <div class="flex gap-2">
+                            <select class="select select-bordered dark:bg-gray-700 dark:border-gray-600" id="product-status">
+                                <option value="">جميع الحالات</option>
+                                <option value="in_stock">في المخزون</option>
+                                <option value="low_stock">منخفض</option>
+                                <option value="out_of_stock">نفذ</option>
+                            </select>
+                            <select class="select select-bordered dark:bg-gray-700 dark:border-gray-600" id="product-category">
+                                <option value="">جميع الفئات</option>
+                                <option value="إلكترونيات">إلكترونيات</option>
+                                <option value="أثاث">أثاث</option>
+                                <option value="قرطاسية">قرطاسية</option>
+                                <option value="أخرى">أخرى</option>
+                            </select>
+                            <button class="btn btn-ghost" onclick="filterProducts()">
+                                <i class="bi bi-funnel"></i> تصفية
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- جدول المنتجات -->
+            <div class="card bg-white dark:bg-gray-800 shadow-sm border dark:border-gray-700">
+                <div class="card-body p-0">
+                    <div class="overflow-x-auto">
+                        <table class="table table-zebra">
+                            <thead>
+                                <tr class="bg-gray-50 dark:bg-gray-700">
+                                    <th>المنتج</th>
+                                    <th>الرقم التسلسلي</th>
+                                    <th>الفئة</th>
+                                    <th>المخزون</th>
+                                    <th>سعر البيع</th>
+                                    <th>سعر التكلفة</th>
+                                    <th>الربح</th>
+                                    <th>الحالة</th>
+                                    <th>الإجراءات</th>
+                                </tr>
+                            </thead>
+                            <tbody id="products-table-body">
+                                <!-- سيتم تعبئته ديناميكياً -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal إضافة منتج -->
+        <dialog id="addProductModal" class="modal">
+            <div class="modal-box">
+                <h3 class="font-bold text-lg mb-4">إضافة منتج جديد</h3>
+                <form id="addProductForm">
+                    <div class="space-y-4">
+                        <div class="form-control">
+                            <label class="label">
+                                <span class="label-text">اسم المنتج</span>
+                            </label>
+                            <input type="text" placeholder="اسم المنتج" 
+                                   class="input input-bordered dark:bg-gray-700 dark:border-gray-600" 
+                                   id="new-prod-name" required>
+                        </div>
+                        
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div class="form-control">
+                                <label class="label">
+                                    <span class="label-text">الرقم التسلسلي (SKU)</span>
+                                </label>
+                                <input type="text" placeholder="SKU" 
+                                       class="input input-bordered dark:bg-gray-700 dark:border-gray-600" 
+                                       id="new-prod-sku">
+                            </div>
+                            <div class="form-control">
+                                <label class="label">
+                                    <span class="label-text">الفئة</span>
+                                </label>
+                                <select class="select select-bordered dark:bg-gray-700 dark:border-gray-600" id="new-prod-category">
+                                    <option value="إلكترونيات">إلكترونيات</option>
+                                    <option value="أثاث">أثاث</option>
+                                    <option value="قرطاسية">قرطاسية</option>
+                                    <option value="أخرى">أخرى</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div class="form-control">
+                                <label class="label">
+                                    <span class="label-text">سعر البيع</span>
+                                </label>
+                                <input type="number" placeholder="سعر البيع" 
+                                       class="input input-bordered dark:bg-gray-700 dark:border-gray-600" 
+                                       id="new-prod-price" step="0.01" required>
+                            </div>
+                            <div class="form-control">
+                                <label class="label">
+                                    <span class="label-text">سعر التكلفة</span>
+                                </label>
+                                <input type="number" placeholder="سعر التكلفة" 
+                                       class="input input-bordered dark:bg-gray-700 dark:border-gray-600" 
+                                       id="new-prod-cost" step="0.01" required>
+                            </div>
+                        </div>
+                        
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div class="form-control">
+                                <label class="label">
+                                    <span class="label-text">الكمية في المخزون</span>
+                                </label>
+                                <input type="number" placeholder="الكمية" 
+                                       class="input input-bordered dark:bg-gray-700 dark:border-gray-600" 
+                                       id="new-prod-stock" value="0" min="0">
+                            </div>
+                            <div class="form-control">
+                                <label class="label">
+                                    <span class="label-text">الحد الأدنى للمخزون</span>
+                                </label>
+                                <input type="number" placeholder="الحد الأدنى" 
+                                       class="input input-bordered dark:bg-gray-700 dark:border-gray-600" 
+                                       id="new-prod-min-stock" value="5" min="0">
+                            </div>
+                        </div>
+                        
+                        <div class="form-control">
+                            <label class="label">
+                                <span class="label-text">وصف المنتج</span>
+                            </label>
+                            <textarea class="textarea textarea-bordered dark:bg-gray-700 dark:border-gray-600 h-20" 
+                                      placeholder="وصف المنتج" id="new-prod-description"></textarea>
+                        </div>
+                    </div>
+                    
+                    <div class="modal-action">
+                        <button type="button" class="btn btn-ghost" onclick="closeModal('addProductModal')">إلغاء</button>
+                        <button type="submit" class="btn btn-primary">حفظ المنتج</button>
+                    </div>
+                </form>
+            </div>
+        </dialog>
+    `;
+}
+
+function initializeInventoryPage() {
+    updateInventoryStats();
+    populateProductsTable();
+    setupProductForm();
+}
+
+function updateInventoryStats() {
+    const totalProducts = appData.products.length;
+    const inStock = appData.products.filter(p => p.status === 'in_stock').length;
+    const lowStock = appData.products.filter(p => p.status === 'low_stock').length;
+    const outOfStock = appData.products.filter(p => p.status === 'out_of_stock').length;
+    
+    document.getElementById('stat-total-products').textContent = totalProducts;
+    document.getElementById('stat-in-stock').textContent = inStock;
+    document.getElementById('stat-low-stock').textContent = lowStock;
+    document.getElementById('stat-out-of-stock').textContent = outOfStock;
+}
+
+function populateProductsTable() {
+    const tbody = document.getElementById('products-table-body');
+    if (!tbody) return;
+    
+    tbody.innerHTML = appData.products.map(product => {
+        const profit = product.price - product.cost;
+        const profitMargin = product.cost > 0 ? (profit / product.cost) * 100 : 0;
+        
+        return `
+            <tr>
+                <td>
+                    <div class="font-bold">${product.name}</div>
+                    <div class="text-xs text-gray-500">${product.description || 'لا يوجد وصف'}</div>
+                </td>
+                <td>
+                    <div class="font-mono text-sm">${product.sku}</div>
+                </td>
+                <td>${product.category}</td>
+                <td>
+                    <div class="font-semibold">${product.stock}</div>
+                    <div class="text-xs text-gray-500">الحد الأدنى: ${product.minStock}</div>
+                </td>
+                <td>
+                    <div class="font-semibold">${formatCurrency(product.price)}</div>
+                </td>
+                <td>
+                    <div class="text-sm">${formatCurrency(product.cost)}</div>
+                </td>
+                <td>
+                    <div class="font-semibold ${profit >= 0 ? 'text-success' : 'text-error'}">
+                        ${formatCurrency(profit)}
+                    </div>
+                    <div class="text-xs text-gray-500">${profitMargin.toFixed(1)}%</div>
+                </td>
+                <td>
+                    ${product.status === 'in_stock' ? 
+                        '<span class="badge badge-success">في المخزون</span>' : 
+                     product.status === 'low_stock' ? 
+                        '<span class="badge badge-warning">منخفض</span>' : 
+                        '<span class="badge badge-error">نفذ</span>'}
+                </td>
+                <td>
+                    <div class="flex gap-1">
+                        <button class="btn btn-ghost btn-xs" onclick="viewProduct('${product.id}')">
+                            <i class="bi bi-eye"></i>
+                        </button>
+                        <button class="btn btn-ghost btn-xs" onclick="editProduct('${product.id}')">
+                            <i class="bi bi-pencil"></i>
+                        </button>
+                        <button class="btn btn-ghost btn-xs text-error" onclick="deleteProduct('${product.id}')">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </div>
+                </td>
+            </tr>
+        `;
+    }).join('');
+}
+
+function setupProductForm() {
+    const form = document.getElementById('addProductForm');
+    if (form) {
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+            addNewProduct();
+        });
+    }
+}
+
+function addNewProduct() {
+    const name = document.getElementById('new-prod-name').value.trim();
+    const sku = document.getElementById('new-prod-sku').value.trim();
+    const category = document.getElementById('new-prod-category').value;
+    const price = parseFloat(document.getElementById('new-prod-price').value) || 0;
+    const cost = parseFloat(document.getElementById('new-prod-cost').value) || 0;
+    const stock = parseInt(document.getElementById('new-prod-stock').value) || 0;
+    const minStock = parseInt(document.getElementById('new-prod-min-stock').value) || 5;
+    const description = document.getElementById('new-prod-description').value.trim();
+    
+    if (!name) {
+        showToast('اسم المنتج مطلوب', 'error');
+        return;
+    }
+    
+    // تحديد حالة المخزون
+    let status = 'in_stock';
+    if (stock === 0) {
+        status = 'out_of_stock';
+    } else if (stock <= minStock) {
+        status = 'low_stock';
+    }
+    
+    const newProduct = {
+        id: generateId('prod'),
+        name,
+        sku: sku || generateId('SKU'),
+        category,
+        price,
+        cost,
+        stock,
+        minStock,
+        status,
+        description,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+    };
+    
+    appData.products.push(newProduct);
+    savePersistentData();
+    populateProductsTable();
+    updateInventoryStats();
+    
+    closeModal('addProductModal');
+    showToast('تم إضافة المنتج بنجاح', 'success');
+    
+    // إعادة تعيين النموذج
+    document.getElementById('addProductForm').reset();
+}
+
+function filterProducts() {
+    const searchTerm = document.getElementById('product-search').value.toLowerCase();
+    const statusFilter = document.getElementById('product-status').value;
+    const categoryFilter = document.getElementById('product-category').value;
+    
+    const filteredProducts = appData.products.filter(product => {
+        const matchesSearch = !searchTerm || 
+            product.name.toLowerCase().includes(searchTerm) ||
+            product.sku.toLowerCase().includes(searchTerm) ||
+            product.category.toLowerCase().includes(searchTerm) ||
+            (product.description && product.description.toLowerCase().includes(searchTerm));
+        
+        const matchesStatus = !statusFilter || product.status === statusFilter;
+        const matchesCategory = !categoryFilter || product.category === categoryFilter;
+        
+        return matchesSearch && matchesStatus && matchesCategory;
+    });
+    
+    const tbody = document.getElementById('products-table-body');
+    if (tbody) {
+        tbody.innerHTML = filteredProducts.map(product => {
+            const profit = product.price - product.cost;
+            const profitMargin = product.cost > 0 ? (profit / product.cost) * 100 : 0;
+            
+            return `
+                <tr>
+                    <td>
+                        <div class="font-bold">${product.name}</div>
+                    </td>
+                    <td>${product.sku}</td>
+                    <td>${product.category}</td>
+                    <td>${product.stock}</td>
+                    <td>${formatCurrency(product.price)}</td>
+                    <td>${formatCurrency(product.cost)}</td>
+                    <td>
+                        <div class="font-semibold ${profit >= 0 ? 'text-success' : 'text-error'}">
+                            ${formatCurrency(profit)}
+                        </div>
+                        <div class="text-xs text-gray-500">${profitMargin.toFixed(1)}%</div>
+                    </td>
+                    <td>
+                        ${product.status === 'in_stock' ? 
+                            '<span class="badge badge-success">في المخزون</span>' : 
+                         product.status === 'low_stock' ? 
+                            '<span class="badge badge-warning">منخفض</span>' : 
+                            '<span class="badge badge-error">نفذ</span>'}
+                    </td>
+                    <td>
+                        <div class="flex gap-1">
+                            <button class="btn btn-ghost btn-xs" onclick="viewProduct('${product.id}')">
+                                <i class="bi bi-eye"></i>
+                            </button>
+                            <button class="btn btn-ghost btn-xs" onclick="editProduct('${product.id}')">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+    }
+    
+    showToast(`تم العثور على ${filteredProducts.length} منتج`, 'info');
+}
+
+function viewProduct(productId) {
+    const product = appData.products.find(p => p.id === productId);
+    if (product) {
+        showToast(`عرض تفاصيل المنتج: ${product.name}`, 'info');
+        // في التطبيق الكامل، نفتح نموذج عرض التفاصيل
+    }
+}
+
+function editProduct(productId) {
+    const product = appData.products.find(p => p.id === productId);
+    if (product) {
+        showToast(`تعديل المنتج: ${product.name}`, 'info');
+        // في التطبيق الكامل، نفتح نموذج التعديل
+    }
+}
+
+function deleteProduct(productId) {
+    const product = appData.products.find(p => p.id === productId);
+    if (product && confirm(`هل أنت متأكد من حذف المنتج "${product.name}"؟`)) {
+        appData.products = appData.products.filter(p => p.id !== productId);
+        savePersistentData();
+        populateProductsTable();
+        updateInventoryStats();
+        showToast('تم حذف المنتج بنجاح', 'success');
+    }
+}
+
+function exportInventory() {
+    const dataStr = JSON.stringify(appData.products, null, 2);
+    const dataBlob = new Blob([dataStr], { type: 'application/json' });
+    
+    const url = URL.createObjectURL(dataBlob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `inventory_export_${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    
+    showToast('تم تصدير بيانات المخزون بنجاح', 'success');
+}
+
+// ========== دوال المساعد الذكي ==========
+function renderAIAssistant() {
+    return `
+        <div class="p-4 lg:p-6 max-w-7xl mx-auto fade-in">
+            <div class="text-center mb-8">
+                <div class="w-20 h-20 bg-gradient-to-r from-primary to-purple-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <i class="bi bi-robot text-3xl text-white"></i>
+                </div>
+                <h1 class="text-3xl font-bold">المساعد الذكي</h1>
+                <p class="text-gray-600 dark:text-gray-400 mt-2">استخدم الذكاء الاصطناعي لتحليل بياناتك</p>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div class="lg:col-span-2">
+                    <div class="card bg-white dark:bg-gray-800 border dark:border-gray-700 shadow-sm">
+                        <div class="card-body">
+                            <h2 class="card-title">محادثة مع المساعد</h2>
+                            <div class="h-72 overflow-y-auto space-y-4 p-4 bg-gray-50 dark:bg-gray-900 rounded-lg" id="ai-chat">
+                                <div class="chat chat-start">
+                                    <div class="chat-bubble chat-bubble-assistant">
+                                        مرحباً! أنا المساعد الذكي لنظام محاسبي برو. 
+                                        يمكنني مساعدتك في تحليل البيانات، إنشاء تقارير، وإعطاء توصيات لتحسين أداء عملك.
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-2 gap-2 mt-4">
+                                <button class="btn btn-outline btn-sm" onclick="askAIPreset('تحليل بيانات المبيعات')">
+                                    <i class="bi bi-graph-up"></i> تحليل المبيعات
+                                </button>
+                                <button class="btn btn-outline btn-sm" onclick="askAIPreset('توصيات العملاء')">
+                                    <i class="bi bi-people"></i> توصيات العملاء
+                                </button>
+                                <button class="btn btn-outline btn-sm" onclick="askAIPreset('تحليل المخزون')">
+                                    <i class="bi bi-box-seam"></i> تحليل المخزون
+                                </button>
+                                <button class="btn btn-outline btn-sm" onclick="askAIPreset('التوقعات المالية')">
+                                    <i class="bi bi-bar-chart"></i> توقعات مالية
+                                </button>
+                            </div>
+
+                            <div class="flex gap-2 mt-4">
+                                <input type="text" placeholder="اكتب سؤالك هنا..." 
+                                       class="input input-bordered flex-1 dark:bg-gray-700 dark:border-gray-600" 
+                                       id="ai-input" />
+                                <button class="btn btn-primary" onclick="askAIMessage()">
+                                    <i class="bi bi-send"></i> إرسال
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="space-y-6">
+                    <div class="card bg-white dark:bg-gray-800 border dark:border-gray-700 shadow-sm">
+                        <div class="card-body">
+                            <h3 class="card-title"><i class="bi bi-stars text-primary"></i> التوصيات الذكية</h3>
+                            <div class="space-y-3" id="ai-recommendations">
+                                <!-- سيتم تعبئته ديناميكياً -->
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="card bg-white dark:bg-gray-800 border dark:border-gray-700 shadow-sm">
+                        <div class="card-body">
+                            <h3 class="card-title"><i class="bi bi-clock-history"></i> المحادثات السابقة</h3>
+                            <div class="space-y-2 max-h-60 overflow-y-auto" id="ai-chat-history">
+                                <!-- سيتم تعبئته ديناميكياً -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+function initializeAIAssistantPage() {
+    loadAIChatHistory();
+    generateAIRecommendations();
+    setupAIChat();
+}
+
+function setupAIChat() {
+    const input = document.getElementById('ai-input');
+    if (input) {
+        input.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                askAIMessage();
+            }
+        });
+    }
+}
+
+function askAIMessage() {
+    const input = document.getElementById('ai-input');
+    const message = input.value.trim();
+    
+    if (!message) {
+        showToast('يرجى إدخال رسالة', 'warning');
+        return;
+    }
+    
+    addAIMessage('user', message);
+    input.value = '';
+    
+    // محاكاة استجابة المساعد الذكي
+    setTimeout(() => {
+        const response = generateAIResponse(message);
+        addAIMessage('assistant', response);
+        
+        // حفظ المحادثة
+        appData.aiChats.push({
+            id: generateId('chat'),
+            question: message,
+            response: response,
+            timestamp: new Date().toISOString()
+        });
+        
+        savePersistentData();
+        loadAIChatHistory();
+    }, 1000);
+}
+
+function addAIMessage(sender, message) {
+    const chatContainer = document.getElementById('ai-chat');
+    if (!chatContainer) return;
+    
+    const messageElement = document.createElement('div');
+    messageElement.className = sender === 'user' ? 'chat chat-end' : 'chat chat-start';
+    
+    const bubbleClass = sender === 'user' ? 'chat-bubble chat-bubble-user' : 'chat-bubble chat-bubble-assistant';
+    
+    messageElement.innerHTML = `
+        <div class="chat-bubble ${bubbleClass}">
+            ${message}
+            <div class="text-xs opacity-70 mt-1">${new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })}</div>
+        </div>
+    `;
+    
+    chatContainer.appendChild(messageElement);
+    chatContainer.scrollTop = chatContainer.scrollHeight;
+}
+
+function generateAIResponse(question) {
+    const responses = {
+        'تحليل بيانات المبيعات': `بناءً على بيانات المبيعات الخاصة بك:
+• إجمالي المبيعات: ${formatCurrency(appData.invoices.reduce((sum, inv) => sum + (inv.total || 0), 0))}
+• متوسط قيمة الفاتورة: ${formatCurrency(appData.invoices.length > 0 ? appData.invoices.reduce((sum, inv) => sum + (inv.total || 0), 0) / appData.invoices.length : 0)}
+• أفضل عملاء: ${appData.customers.slice(0, 3).map(c => c.name).join('، ')}
+أوصي بالتركيز على العملاء الحاليين لزيادة الإيرادات بنسبة تصل إلى 20%.`,
+
+        'توصيات العملاء': `تحليل قاعدة العملاء:
+• إجمالي العملاء: ${appData.customers.length}
+• العملاء النشطين: ${appData.customers.filter(c => c.status === 'active').length}
+• العملاء VIP: ${appData.customers.filter(c => c.type === 'vip').length}
+التوصيات:
+1. متابعة العملاء غير النشطين
+2. تحويل العملاء العاديين إلى VIP
+3. تقديم عروض مخصصة للعملاء المميزين`,
+
+        'تحليل المخزون': `تحليل حالة المخزون:
+• المنتجات في المخزون: ${appData.products.filter(p => p.status === 'in_stock').length}
+• المنتجات منخفضة المخزون: ${appData.products.filter(p => p.status === 'low_stock').length}
+• المنتجات التي نفذت: ${appData.products.filter(p => p.status === 'out_of_stock').length}
+أنصح بإعادة طلب ${appData.products.filter(p => p.status === 'low_stock' || p.status === 'out_of_stock').length} منتج بشكل عاجل.`,
+
+        'التوقعات المالية': `بناءً على البيانات الحالية:
+• متوسط المبيعات الشهرية: ${formatCurrency(appData.invoices.reduce((sum, inv) => sum + (inv.total || 0), 0) / 6)}
+• النمو المتوقع: 15% للشهر القادم
+• التوقعات: ${formatCurrency(appData.invoices.reduce((sum, inv) => sum + (inv.total || 0), 0) * 1.15)}
+أنصح باستثمار 10% من الأرباح في التسويق لتحقيق نمو أكبر.`
+    };
+    
+    // البحث عن أفضل تطابق
+    for (const [key, value] of Object.entries(responses)) {
+        if (question.includes(key)) {
+            return value;
+        }
+    }
+    
+    // رد افتراضي
+    const defaultResponses = [
+        "أفهم سؤالك. بناءً على البيانات المتاحة، يمكنني مساعدتك في تحسين أداء عملك.",
+        "هذا سؤال مثير للاهتمام! دعني أحلل البيانات لأعطيك أفضل التوصيات.",
+        "شكراً لسؤالك. سأقوم بتحليل المعلومات المتاحة وأعود إليك بالتوصيات قريباً.",
+        "بناءً على البيانات الحالية، أرى فرصاً لتحسين الأداء في عدة مجالات.",
+        "سأقوم بمراجعة البيانات وأعطيك تحليلاً شاملاً لمساعدتك في اتخاذ القرارات."
+    ];
+    
+    return defaultResponses[Math.floor(Math.random() * defaultResponses.length)];
+}
+
+function askAIPreset(presetQuestion) {
+    const input = document.getElementById('ai-input');
+    input.value = presetQuestion;
+    askAIMessage();
+}
+
+function loadAIChatHistory() {
+    const historyContainer = document.getElementById('ai-chat-history');
+    if (!historyContainer) return;
+    
+    // عرض آخر 5 محادثات
+    const recentChats = appData.aiChats.slice(-5).reverse();
+    
+    historyContainer.innerHTML = recentChats.map(chat => `
+        <div class="p-2 rounded bg-base-200 dark:bg-gray-700 cursor-pointer hover:bg-base-300 dark:hover:bg-gray-600" 
+             onclick="loadChat('${chat.id}')">
+            <div class="text-sm font-medium truncate">${chat.question}</div>
+            <div class="text-xs text-gray-500">${formatDate(chat.timestamp)}</div>
+        </div>
+    `).join('');
+}
+
+function loadChat(chatId) {
+    const chat = appData.aiChats.find(c => c.id === chatId);
+    if (chat) {
+        const chatContainer = document.getElementById('ai-chat');
+        chatContainer.innerHTML = '';
+        
+        addAIMessage('user', chat.question);
+        addAIMessage('assistant', chat.response);
+    }
+}
+
+function generateAIRecommendations() {
+    const recommendationsContainer = document.getElementById('ai-recommendations');
+    if (!recommendationsContainer) return;
+    
+    const recommendations = [];
+    
+    // تحليل المخزون
+    const lowStockProducts = appData.products.filter(p => p.status === 'low_stock' || p.status === 'out_of_stock');
+    if (lowStockProducts.length > 0) {
+        recommendations.push({
+            type: 'error',
+            title: 'تحسين المخزون',
+            message: `${lowStockProducts.length} منتج يحتاج إعادة طلب فورية`
+        });
+    }
+    
+    // تحليل العملاء
+    const inactiveCustomers = appData.customers.filter(c => c.status === 'inactive');
+    if (inactiveCustomers.length > 5) {
+        recommendations.push({
+            type: 'warning',
+            title: 'متابعة العملاء',
+            message: `${inactiveCustomers.length} عميل غير نشط يحتاج متابعة`
+        });
+    }
+    
+    // تحليل الفواتير
+    const pendingInvoices = appData.invoices.filter(i => i.status === 'pending');
+    if (pendingInvoices.length > 10) {
+        recommendations.push({
+            type: 'warning',
+            title: 'متابعة الفواتير',
+            message: `${pendingInvoices.length} فاتورة معلقة تحتاج متابعة`
+        });
+    }
+    
+    // توصيات عامة
+    if (recommendations.length === 0) {
+        recommendations.push({
+            type: 'success',
+            title: 'أداء ممتاز',
+            message: 'عملك يسير بشكل جيد، حافظ على هذا الأداء!'
+        });
+    }
+    
+    recommendationsContainer.innerHTML = recommendations.map(rec => `
+        <div class="alert alert-${rec.type}">
+            <i class="bi bi-lightning-charge"></i>
+            <div>
+                <div class="font-bold">${rec.title}</div>
+                <div class="text-xs">${rec.message}</div>
+            </div>
+        </div>
+    `).join('');
+}
+
+// ========== دوال التقارير ==========
+function renderReports() {
+    return `
+        <div class="fade-in">
+            <div class="flex justify-between items-center mb-6">
+                <div>
+                    <h1 class="text-2xl font-bold">التقارير والتحليلات</h1>
+                    <p class="text-gray-600 dark:text-gray-400">تقارير شاملة وتحليلات متقدمة</p>
+                </div>
+                <div class="flex gap-2">
+                    <button class="btn btn-outline" onclick="exportAllReports()">
+                        <i class="bi bi-download"></i> تصدير الكل
+                    </button>
+                    <button class="btn btn-primary" onclick="generateCustomReport()">
+                        <i class="bi bi-plus-lg"></i> تقرير مخصص
+                    </button>
+                </div>
+            </div>
+
+            <!-- تقارير سريعة -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                <div class="card bg-white dark:bg-gray-800 border dark:border-gray-700 hover:shadow-md cursor-pointer" 
+                     onclick="generateReport('sales')">
+                    <div class="card-body text-center">
+                        <i class="bi bi-graph-up text-3xl text-primary mb-2"></i>
+                        <h3 class="font-semibold">تقرير المبيعات</h3>
+                        <p class="text-sm text-gray-500">آخر تحديث: اليوم</p>
+                    </div>
+                </div>
+                
+                <div class="card bg-white dark:bg-gray-800 border dark:border-gray-700 hover:shadow-md cursor-pointer" 
+                     onclick="generateReport('customers')">
+                    <div class="card-body text-center">
+                        <i class="bi bi-people text-3xl text-success mb-2"></i>
+                        <h3 class="font-semibold">تقرير العملاء</h3>
+                        <p class="text-sm text-gray-500">آخر تحديث: أمس</p>
+                    </div>
+                </div>
+                
+                <div class="card bg-white dark:bg-gray-800 border dark:border-gray-700 hover:shadow-md cursor-pointer" 
+                     onclick="generateReport('inventory')">
+                    <div class="card-body text-center">
+                        <i class="bi bi-box-seam text-3xl text-warning mb-2"></i>
+                        <h3 class="font-semibold">تقرير المخزون</h3>
+                        <p class="text-sm text-gray-500">آخر تحديث: اليوم</p>
+                    </div>
+                </div>
+                
+                <div class="card bg-white dark:bg-gray-800 border dark:border-gray-700 hover:shadow-md cursor-pointer" 
+                     onclick="generateReport('financial')">
+                    <div class="card-body text-center">
+                        <i class="bi bi-currency-dollar text-3xl text-info mb-2"></i>
+                        <h3 class="font-semibold">تقرير مالي</h3>
+                        <p class="text-sm text-gray-500">آخر تحديث: هذا الأسبوع</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- الرسوم البيانية -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+                <div class="card bg-white dark:bg-gray-800 shadow-sm border dark:border-gray-700">
+                    <div class="card-body">
+                        <h2 class="card-title">أداء المبيعات</h2>
+                        <div class="chart-container">
+                            <canvas id="salesReportChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card bg-white dark:bg-gray-800 shadow-sm border dark:border-gray-700">
+                    <div class="card-body">
+                        <h2 class="card-title">توزيع العملاء</h2>
+                        <div class="chart-container">
+                            <canvas id="customersReportChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- التقارير التفصيلية -->
+            <div class="card bg-white dark:bg-gray-800 shadow-sm border dark:border-gray-700">
+                <div class="card-body">
+                    <h2 class="card-title">التقارير التفصيلية</h2>
+                    <div class="overflow-x-auto">
+                        <table class="table table-zebra">
+                            <thead>
+                                <tr>
+                                    <th>التقرير</th>
+                                    <th>الفترة</th>
+                                    <th>الحالة</th>
+                                    <th>تاريخ الإنشاء</th>
+                                    <th>الإجراءات</th>
+                                </tr>
+                            </thead>
+                            <tbody id="reports-table-body">
+                                <!-- سيتم تعبئته ديناميكياً -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+function initializeReportsPage() {
+    initializeReportCharts();
+    populateReportsTable();
+}
+
+function initializeReportCharts() {
+    // رسم بياني لأداء المبيعات
+    const salesCtx = document.getElementById('salesReportChart');
+    if (salesCtx) {
+        const monthlySales = Array.from({ length: 6 }, (_, i) => {
+            const date = new Date();
+            date.setMonth(date.getMonth() - i);
+            return {
+                month: date.toLocaleDateString('ar-EG', { month: 'long' }),
+                sales: Math.floor(Math.random() * 10000) + 5000
+            };
+        }).reverse();
+        
+        new Chart(salesCtx, {
+            type: 'bar',
+            data: {
+                labels: monthlySales.map(m => m.month),
+                datasets: [{
+                    label: 'المبيعات',
+                    data: monthlySales.map(m => m.sales),
+                    backgroundColor: 'rgba(59, 130, 246, 0.7)',
+                    borderColor: 'rgba(59, 130, 246, 1)',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true
+                    }
+                }
+            }
+        });
+    }
+    
+    // رسم بياني لتوزيع العملاء
+    const customersCtx = document.getElementById('customersReportChart');
+    if (customersCtx) {
+        const customerData = {
+            نشط: appData.customers.filter(c => c.status === 'active').length,
+            غيرنشط: appData.customers.filter(c => c.status === 'inactive').length,
+            VIP: appData.customers.filter(c => c.type === 'vip').length
+        };
+        
+        new Chart(customersCtx, {
+            type: 'pie',
+            data: {
+                labels: Object.keys(customerData),
+                datasets: [{
+                    data: Object.values(customerData),
+                    backgroundColor: [
+                        'rgba(16, 185, 129, 0.7)',
+                        'rgba(239, 68, 68, 0.7)',
+                        'rgba(139, 92, 246, 0.7)'
+                    ]
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'bottom'
+                    }
+                }
+            }
+        });
+    }
+}
+
+function populateReportsTable() {
+    const tbody = document.getElementById('reports-table-body');
+    if (!tbody) return;
+    
+    const reports = [
+        { name: 'تقرير المبيعات الشهرية', period: 'شهري', status: 'مكتمل', date: new Date().toISOString() },
+        { name: 'تقرير العملاء', period: 'ربع سنوي', status: 'مكتمل', date: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString() },
+        { name: 'تقرير المخزون', period: 'أسبوعي', status: 'قيد المعالجة', date: new Date().toISOString() },
+        { name: 'التقرير المالي', period: 'سنوي', status: 'مكتمل', date: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString() }
+    ];
+    
+    tbody.innerHTML = reports.map(report => `
+        <tr>
+            <td>${report.name}</td>
+            <td>${report.period}</td>
+            <td>
+                <span class="badge ${report.status === 'مكتمل' ? 'badge-success' : 'badge-warning'}">
+                    ${report.status}
+                </span>
+            </td>
+            <td>${formatDate(report.date)}</td>
+            <td>
+                <div class="flex gap-1">
+                    <button class="btn btn-ghost btn-xs" onclick="viewReport('${report.name}')">
+                        <i class="bi bi-eye"></i>
+                    </button>
+                    <button class="btn btn-ghost btn-xs" onclick="downloadReport('${report.name}')">
+                        <i class="bi bi-download"></i>
+                    </button>
+                </div>
+            </td>
+        </tr>
+    `).join('');
+}
+
+function generateReport(type) {
+    let message = '';
+    
+    switch(type) {
+        case 'sales':
+            message = 'جاري إنشاء تقرير المبيعات...';
+            break;
+        case 'customers':
+            message = 'جاري إنشاء تقرير العملاء...';
+            break;
+        case 'inventory':
+            message = 'جاري إنشاء تقرير المخزون...';
+            break;
+        case 'financial':
+            message = 'جاري إنشاء التقرير المالي...';
+            break;
+        default:
+            message = 'جاري إنشاء التقرير...';
+    }
+    
+    showToast(message, 'info');
+    
+    // محاكاة معالجة التقرير
+    setTimeout(() => {
+        showToast('تم إنشاء التقرير بنجاح', 'success');
+    }, 2000);
+}
+
+function generateCustomReport() {
+    showToast('فتح أداة إنشاء التقارير المخصصة...', 'info');
+    // في التطبيق الكامل، نفتح نموذج إنشاء تقرير مخصص
+}
+
+function exportAllReports() {
+    showToast('جاري تصدير جميع التقارير...', 'info');
+    
+    // محاكاة تصدير التقارير
+    setTimeout(() => {
+        showToast('تم تصدير جميع التقارير بنجاح', 'success');
+    }, 1500);
+}
+
+function viewReport(reportName) {
+    showToast(`عرض التقرير: ${reportName}`, 'info');
+    // في التطبيق الكامل، نعرض التقرير
+}
+
+function downloadReport(reportName) {
+    showToast(`تحميل التقرير: ${reportName}`, 'info');
+    // في التطبيق الكامل، نقوم بتحميل التقرير
+}
+
+// ========== دوال الإشعارات ==========
+function renderNotifications() {
+    return `
+        <div class="fade-in">
+            <div class="flex justify-between items-center mb-6">
+                <div>
+                    <h1 class="text-2xl font-bold">الإشعارات</h1>
+                    <p class="text-gray-600 dark:text-gray-400">إدارة وتتبع جميع الإشعارات</p>
+                </div>
+                <div class="flex gap-2">
+                    <button class="btn btn-ghost" onclick="markAllAsRead()">
+                        <i class="bi bi-check-all"></i> تعيين الكل كمقروء
+                    </button>
+                    <button class="btn btn-ghost text-error" onclick="clearAllNotifications()">
+                        <i class="bi bi-trash"></i> حذف الكل
+                    </button>
+                </div>
+            </div>
+
+            <!-- إحصائيات الإشعارات -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                <div class="stat bg-white dark:bg-gray-800 rounded-lg border dark:border-gray-700">
+                    <div class="stat-figure text-primary">
+                        <i class="bi bi-bell text-2xl"></i>
+                    </div>
+                    <div class="stat-title">إجمالي الإشعارات</div>
+                    <div class="stat-value text-primary" id="total-notifications">0</div>
+                </div>
+                <div class="stat bg-white dark:bg-gray-800 rounded-lg border dark:border-gray-700">
+                    <div class="stat-figure text-warning">
+                        <i class="bi bi-envelope text-2xl"></i>
+                    </div>
+                    <div class="stat-title">غير المقروء</div>
+                    <div class="stat-value text-warning" id="unread-notifications">0</div>
+                </div>
+                <div class="stat bg-white dark:bg-gray-800 rounded-lg border dark:border-gray-700">
+                    <div class="stat-figure text-success">
+                        <i class="bi bi-check-circle text-2xl"></i>
+                    </div>
+                    <div class="stat-title">المقروء</div>
+                    <div class="stat-value text-success" id="read-notifications">0</div>
+                </div>
+            </div>
+
+            <!-- قائمة الإشعارات -->
+            <div class="space-y-4" id="notifications-list">
+                <!-- سيتم تعبئته ديناميكياً -->
+            </div>
+        </div>
+    `;
+}
+
+function initializeNotificationsPage() {
+    updateNotificationStats();
+    populateNotificationsList();
+}
+
+function updateNotificationStats() {
+    const totalNotifications = appData.notifications.length;
+    const unreadNotifications = appData.notifications.filter(n => !n.read).length;
+    const readNotifications = totalNotifications - unreadNotifications;
+    
+    document.getElementById('total-notifications').textContent = totalNotifications;
+    document.getElementById('unread-notifications').textContent = unreadNotifications;
+    document.getElementById('read-notifications').textContent = readNotifications;
+    
+    // تحديث العداد في الشريط العلوي
+    document.getElementById('notification-count').textContent = unreadNotifications;
+}
+
+function populateNotificationsList() {
+    const container = document.getElementById('notifications-list');
+    if (!container) return;
+    
+    container.innerHTML = appData.notifications.map(notification => `
+        <div class="card bg-white dark:bg-gray-800 border dark:border-gray-700 ${notification.read ? '' : 'border-l-4 border-l-primary'}">
+            <div class="card-body">
+                <div class="flex justify-between items-start">
+                    <div class="flex-1">
+                        <h3 class="font-semibold ${notification.read ? 'text-gray-600 dark:text-gray-400' : ''}">
+                            ${notification.title}
+                        </h3>
+                        <p class="text-sm mt-1 ${notification.read ? 'text-gray-500' : ''}">
+                            ${notification.message}
+                        </p>
+                        <div class="flex items-center gap-4 mt-2 text-xs text-gray-500">
+                            <span>${formatDate(notification.date)}</span>
+                            <span>•</span>
+                            <span>${getTimeAgo(notification.date)}</span>
+                        </div>
+                    </div>
+                    <div class="flex gap-2">
+                        ${!notification.read ? `
+                            <button class="btn btn-ghost btn-sm" onclick="markAsRead('${notification.id}')">
+                                <i class="bi bi-check"></i>
+                            </button>
+                        ` : ''}
+                        <button class="btn btn-ghost btn-sm text-error" onclick="deleteNotification('${notification.id}')">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `).join('');
+}
+
+function markAsRead(notificationId) {
+    const notification = appData.notifications.find(n => n.id === notificationId);
+    if (notification) {
+        notification.read = true;
+        savePersistentData();
+        populateNotificationsList();
+        updateNotificationStats();
+        showToast('تم تعيين الإشعار كمقروء', 'success');
+    }
+}
+
+function markAllAsRead() {
+    appData.notifications.forEach(notification => {
+        notification.read = true;
+    });
+    
+    savePersistentData();
+    populateNotificationsList();
+    updateNotificationStats();
+    showToast('تم تعيين جميع الإشعارات كمقروءة', 'success');
+}
+
+function deleteNotification(notificationId) {
+    const notification = appData.notifications.find(n => n.id === notificationId);
+    if (notification && confirm('هل أنت متأكد من حذف هذا الإشعار؟')) {
+        appData.notifications = appData.notifications.filter(n => n.id !== notificationId);
+        savePersistentData();
+        populateNotificationsList();
+        updateNotificationStats();
+        showToast('تم حذف الإشعار', 'success');
+    }
+}
+
+function clearAllNotifications() {
+    if (confirm('هل أنت متأكد من حذف جميع الإشعارات؟')) {
+        appData.notifications = [];
+        savePersistentData();
+        populateNotificationsList();
+        updateNotificationStats();
+        showToast('تم حذف جميع الإشعارات', 'success');
+    }
+}
+
+// ========== دوال الإعدادات ==========
+function renderSettings() {
+    return `
+        <div class="p-4 lg:p-6 max-w-6xl mx-auto fade-in">
+            <div class="mb-8">
+                <h1 class="text-2xl font-bold">الإعدادات</h1>
+                <p class="text-gray-600 dark:text-gray-400">إعدادات النظام والتخصيص</p>
+            </div>
+            
+            <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                <div class="lg:col-span-1">
+                    <div class="card bg-white dark:bg-gray-800 border dark:border-gray-700">
+                        <div class="card-body p-4">
+                            <ul class="menu space-y-1" id="settings-tabs">
+                                <li>
+                                    <a class="settings-tab active-setting bg-primary text-white" 
+                                       data-target="company-info" onclick="switchSettingsTab('company-info')">
+                                        <i class="bi bi-building"></i> معلومات الشركة
+                                    </a>
+                                </li>
+                                <li>
+                                    <a class="settings-tab" data-target="financial-settings" onclick="switchSettingsTab('financial-settings')">
+                                        <i class="bi bi-currency-dollar"></i> الإعدادات المالية
+                                    </a>
+                                </li>
+                                <li>
+                                    <a class="settings-tab" data-target="invoice-settings" onclick="switchSettingsTab('invoice-settings')">
+                                        <i class="bi bi-receipt"></i> إعدادات الفواتير
+                                    </a>
+                                </li>
+                                <li>
+                                    <a class="settings-tab" data-target="ai-settings" onclick="switchSettingsTab('ai-settings')">
+                                        <i class="bi bi-robot"></i> إعدادات الذكاء الاصطناعي
+                                    </a>
+                                </li>
+                                <li>
+                                    <a class="settings-tab" data-target="appearance-settings" onclick="switchSettingsTab('appearance-settings')">
+                                        <i class="bi bi-palette"></i> الإعدادات الظاهرية
+                                    </a>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="lg:col-span-3 space-y-6" id="settings-content-area">
+                    <!-- محتوى الإعدادات يتم تحميله هنا -->
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+function initializeSettingsPage() {
+    loadSettingsContent('company-info');
+}
+
+function switchSettingsTab(tabName) {
+    // تحديث التبويبات النشطة
+    document.querySelectorAll('.settings-tab').forEach(tab => {
+        tab.classList.remove('active-setting', 'bg-primary', 'text-white');
+    });
+    
+    const activeTab = document.querySelector(`.settings-tab[data-target="${tabName}"]`);
+    if (activeTab) {
+        activeTab.classList.add('active-setting', 'bg-primary', 'text-white');
+    }
+    
+    // تحميل محتوى التبويب
+    loadSettingsContent(tabName);
+}
+
+function loadSettingsContent(tabName) {
+    const contentArea = document.getElementById('settings-content-area');
+    if (!contentArea) return;
+    
+    let content = '';
+    
+    switch(tabName) {
+        case 'company-info':
+            content = renderCompanySettings();
+            break;
+        case 'financial-settings':
+            content = renderFinancialSettings();
+            break;
+        case 'invoice-settings':
+            content = renderInvoiceSettings();
+            break;
+        case 'ai-settings':
+            content = renderAISettings();
+            break;
+        case 'appearance-settings':
+            content = renderAppearanceSettings();
+            break;
+        default:
+            content = '<div class="card bg-white dark:bg-gray-800 border dark:border-gray-700"><div class="card-body">تحت التطوير</div></div>';
+    }
+    
+    contentArea.innerHTML = content;
+    initializeSettingsForms(tabName);
+}
+
+function renderCompanySettings() {
+    return `
+        <div class="settings-content card bg-white dark:bg-gray-800 border dark:border-gray-700">
+            <div class="card-body">
+                <h2 class="card-title">معلومات الشركة</h2>
+                <form id="company-info-form">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="form-control">
+                            <label class="label">
+                                <span class="label-text">اسم الشركة</span>
+                            </label>
+                            <input type="text" class="input input-bordered dark:bg-gray-700 dark:border-gray-600" 
+                                   id="company-name" value="${appData.settings.company.name}" required>
+                        </div>
+                        <div class="form-control">
+                            <label class="label">
+                                <span class="label-text">البريد الإلكتروني</span>
+                            </label>
+                            <input type="email" class="input input-bordered dark:bg-gray-700 dark:border-gray-600" 
+                                   id="company-email" value="${appData.settings.company.email}" required>
+                        </div>
+                        <div class="form-control">
+                            <label class="label">
+                                <span class="label-text">الهاتف</span>
+                            </label>
+                            <input type="tel" class="input input-bordered dark:bg-gray-700 dark:border-gray-600" 
+                                   id="company-phone" value="${appData.settings.company.phone}">
+                        </div>
+                        <div class="form-control">
+                            <label class="label">
+                                <span class="label-text">الموقع الإلكتروني</span>
+                            </label>
+                            <input type="url" class="input input-bordered dark:bg-gray-700 dark:border-gray-600" 
+                                   id="company-website" value="${appData.settings.company.website}">
+                        </div>
+                        <div class="form-control md:col-span-2">
+                            <label class="label">
+                                <span class="label-text">العنوان</span>
+                            </label>
+                            <textarea class="textarea textarea-bordered dark:bg-gray-700 dark:border-gray-600 h-20" 
+                                      id="company-address">${appData.settings.company.address}</textarea>
+                        </div>
+                    </div>
+                    <div class="mt-6">
+                        <button type="button" class="btn btn-primary" onclick="saveCompanySettings()">
+                            حفظ الإعدادات
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    `;
+}
+
+function renderFinancialSettings() {
+    return `
+        <div class="settings-content card bg-white dark:bg-gray-800 border dark:border-gray-700">
+            <div class="card-body">
+                <h2 class="card-title">الإعدادات المالية</h2>
+                <form id="financial-form">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="form-control">
+                            <label class="label">
+                                <span class="label-text">العملة الافتراضية</span>
+                            </label>
+                            <select class="select select-bordered dark:bg-gray-700 dark:border-gray-600" id="default-currency">
+                                <option value="EGP" ${appData.settings.financial.currency === 'EGP' ? 'selected' : ''}>جنيه مصري (EGP)</option>
+                                <option value="SAR" ${appData.settings.financial.currency === 'SAR' ? 'selected' : ''}>ريال سعودي (SAR)</option>
+                                <option value="USD" ${appData.settings.financial.currency === 'USD' ? 'selected' : ''}>دولار أمريكي (USD)</option>
+                                <option value="EUR" ${appData.settings.financial.currency === 'EUR' ? 'selected' : ''}>يورو (EUR)</option>
+                            </select>
+                        </div>
+                        <div class="form-control">
+                            <label class="label">
+                                <span class="label-text">الضريبة الافتراضية (%)</span>
+                            </label>
+                            <input type="number" class="input input-bordered dark:bg-gray-700 dark:border-gray-600" 
+                                   id="default-tax" value="${appData.settings.financial.taxRate}" min="0" max="100" step="0.1">
+                        </div>
+                    </div>
+                    <div class="mt-6">
+                        <button type="button" class="btn btn-primary" onclick="saveFinancialSettings()">
+                            حفظ الإعدادات
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    `;
+}
+
+function renderInvoiceSettings() {
+    return `
+        <div class="settings-content card bg-white dark:bg-gray-800 border dark:border-gray-700">
+            <div class="card-body">
+                <h2 class="card-title">إعدادات الفواتير</h2>
+                <form id="invoice-settings-form">
+                    <div class="space-y-4">
+                        <div class="form-control">
+                            <label class="label">
+                                <span class="label-text">بادئة الفاتورة</span>
+                            </label>
+                            <input type="text" class="input input-bordered dark:bg-gray-700 dark:border-gray-600" 
+                                   id="invoice-prefix" value="${appData.settings.financial.invoicePrefix}">
+                        </div>
+                        <div class="form-control">
+                            <label class="label">
+                                <span class="label-text">شروط الدفع الافتراضية</span>
+                            </label>
+                            <textarea class="textarea textarea-bordered dark:bg-gray-700 dark:border-gray-600 h-20" 
+                                      id="invoice-terms">${appData.settings.financial.invoiceTerms}</textarea>
+                        </div>
+                        <div class="form-control">
+                            <label class="label">
+                                <span class="label-text">طرق الدفع المتاحة</span>
+                            </label>
+                            <div class="space-y-2" id="payment-methods">
+                                ${appData.settings.financial.paymentMethods.map(method => `
+                                    <div class="flex gap-2 items-center">
+                                        <input type="text" class="input input-bordered flex-1 dark:bg-gray-700 dark:border-gray-600" 
+                                               value="${method}" onchange="updatePaymentMethod(this)">
+                                        <button type="button" class="btn btn-ghost btn-sm text-error" onclick="removePaymentMethod(this)">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </div>
+                                `).join('')}
+                            </div>
+                            <button type="button" class="btn btn-ghost btn-sm mt-2" onclick="addPaymentMethod()">
+                                <i class="bi bi-plus"></i> إضافة طريقة دفع
+                            </button>
+                        </div>
+                    </div>
+                    <div class="mt-6">
+                        <button type="button" class="btn btn-primary" onclick="saveInvoiceSettings()">
+                            حفظ الإعدادات
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    `;
+}
+
+function renderAISettings() {
+    return `
+        <div class="settings-content card bg-white dark:bg-gray-800 border dark:border-gray-700">
+            <div class="card-body">
+                <h2 class="card-title">إعدادات الذكاء الاصطناعي</h2>
+                <form id="ai-settings-form">
+                    <div class="space-y-4">
+                        <div class="form-control">
+                            <label class="label">
+                                <span class="label-text">مفتاح API للذكاء الاصطناعي</span>
+                            </label>
+                            <input type="password" class="input input-bordered dark:bg-gray-700 dark:border-gray-600" 
+                                   id="ai-api-key" value="${appData.settings.ai.apiKey}" placeholder="أدخل مفتاح API">
+                            <label class="label">
+                                <span class="label-text-alt">لم يتم تخزين المفتاح بشكل آمن في هذا الإصدار التجريبي</span>
+                            </label>
+                        </div>
+                        <div class="form-control">
+                            <label class="label">
+                                <span class="label-text">نموذج الذكاء الاصطناعي</span>
+                            </label>
+                            <select class="select select-bordered dark:bg-gray-700 dark:border-gray-600" id="ai-model">
+                                <option value="gpt-4" ${appData.settings.ai.model === 'gpt-4' ? 'selected' : ''}>GPT-4</option>
+                                <option value="gpt-3.5" ${appData.settings.ai.model === 'gpt-3.5' ? 'selected' : ''}>GPT-3.5</option>
+                                <option value="claude" ${appData.settings.ai.model === 'claude' ? 'selected' : ''}>Claude</option>
+                            </select>
+                        </div>
+                        <div class="form-control">
+                            <label class="label">
+                                <span class="label-text">درجة حرارة النموذج: <span id="ai-temp-value">${appData.settings.ai.temperature}</span></span>
+                            </label>
+                            <input type="range" min="0" max="1" value="${appData.settings.ai.temperature}" step="0.1" 
+                                   class="range range-primary" id="ai-temp" oninput="document.getElementById('ai-temp-value').textContent = this.value">
+                            <div class="flex justify-between text-xs px-2">
+                                <span>أكثر تحفظاً</span>
+                                <span>أكثر إبداعاً</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mt-6">
+                        <button type="button" class="btn btn-primary" onclick="saveAISettings()">
+                            حفظ الإعدادات
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    `;
+}
+
+function renderAppearanceSettings() {
+    return `
+        <div class="settings-content card bg-white dark:bg-gray-800 border dark:border-gray-700">
+            <div class="card-body">
+                <h2 class="card-title">الإعدادات الظاهرية</h2>
+                <form id="appearance-settings-form">
+                    <div class="space-y-4">
+                        <div class="form-control">
+                            <label class="label">
+                                <span class="label-text">السمة</span>
+                            </label>
+                            <div class="flex gap-4">
+                                <label class="cursor-pointer flex items-center gap-2">
+                                    <input type="radio" name="theme" value="light" class="radio radio-primary" 
+                                           ${appData.settings.appearance.theme === 'light' ? 'checked' : ''} onchange="updateTheme('light')">
+                                    <span>فاتح</span>
+                                </label>
+                                <label class="cursor-pointer flex items-center gap-2">
+                                    <input type="radio" name="theme" value="dark" class="radio radio-primary" 
+                                           ${appData.settings.appearance.theme === 'dark' ? 'checked' : ''} onchange="updateTheme('dark')">
+                                    <span>غامق</span>
+                                </label>
+                                <label class="cursor-pointer flex items-center gap-2">
+                                    <input type="radio" name="theme" value="auto" class="radio radio-primary" 
+                                           ${appData.settings.appearance.theme === 'auto' ? 'checked' : ''} onchange="updateTheme('auto')">
+                                    <span>تلقائي</span>
+                                </label>
+                            </div>
+                        </div>
+                        <div class="form-control">
+                            <label class="label">
+                                <span class="label-text">اللغة</span>
+                            </label>
+                            <select class="select select-bordered dark:bg-gray-700 dark:border-gray-600" id="app-language">
+                                <option value="ar" ${appData.settings.appearance.language === 'ar' ? 'selected' : ''}>العربية</option>
+                                <option value="en" ${appData.settings.appearance.language === 'en' ? 'selected' : ''}>English</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="mt-6">
+                        <button type="button" class="btn btn-primary" onclick="saveAppearanceSettings()">
+                            حفظ الإعدادات
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    `;
+}
+
+function initializeSettingsForms(tabName) {
+    // تهيئة أي نماذج أو أحداث خاصة بكل تبويب
+}
+
+function saveCompanySettings() {
+    appData.settings.company = {
+        name: document.getElementById('company-name').value,
+        email: document.getElementById('company-email').value,
+        phone: document.getElementById('company-phone').value,
+        website: document.getElementById('company-website').value,
+        address: document.getElementById('company-address').value,
+        logo: appData.settings.company.logo // الحفاظ على القيمة الحالية
+    };
+    
+    savePersistentData();
+    showToast('تم حفظ إعدادات الشركة بنجاح', 'success');
+}
+
+function saveFinancialSettings() {
+    appData.settings.financial = {
+        ...appData.settings.financial,
+        currency: document.getElementById('default-currency').value,
+        taxRate: parseFloat(document.getElementById('default-tax').value) || 0
+    };
+    
+    savePersistentData();
+    showToast('تم حفظ الإعدادات المالية بنجاح', 'success');
+}
+
+function saveInvoiceSettings() {
+    appData.settings.financial = {
+        ...appData.settings.financial,
+        invoicePrefix: document.getElementById('invoice-prefix').value,
+        invoiceTerms: document.getElementById('invoice-terms').value
+        // paymentMethods يتم تحديثها بشكل منفصل
+    };
+    
+    savePersistentData();
+    showToast('تم حفظ إعدادات الفواتير بنجاح', 'success');
+}
+
+function addPaymentMethod() {
+    const container = document.getElementById('payment-methods');
+    const newMethod = document.createElement('div');
+    newMethod.className = 'flex gap-2 items-center';
+    newMethod.innerHTML = `
+        <input type="text" class="input input-bordered flex-1 dark:bg-gray-700 dark:border-gray-600" 
+               value="" onchange="updatePaymentMethod(this)" placeholder="طريقة دفع جديدة">
+        <button type="button" class="btn btn-ghost btn-sm text-error" onclick="removePaymentMethod(this)">
+            <i class="bi bi-trash"></i>
+        </button>
+    `;
+    container.appendChild(newMethod);
+}
+
+function updatePaymentMethod(input) {
+    // يتم تحديث paymentMethods عند الحفظ
+}
+
+function removePaymentMethod(button) {
+    button.parentElement.remove();
+}
+
+function saveAISettings() {
+    appData.settings.ai = {
+        apiKey: document.getElementById('ai-api-key').value,
+        model: document.getElementById('ai-model').value,
+        temperature: parseFloat(document.getElementById('ai-temp').value) || 0.7
+    };
+    
+    savePersistentData();
+    showToast('تم حفظ إعدادات الذكاء الاصطناعي بنجاح', 'success');
+}
+
+function updateTheme(theme) {
+    if (theme === 'auto') {
+        // الكشف التلقائي عن السمة
+        const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        applyTheme(isDark ? 'dark' : 'light');
+    } else {
+        applyTheme(theme);
+    }
+    
+    appData.settings.appearance.theme = theme;
+    savePersistentData();
+}
+
+function saveAppearanceSettings() {
+    appData.settings.appearance = {
+        theme: appData.settings.appearance.theme, // تم التحديث بالفعل عبر updateTheme
+        language: document.getElementById('app-language').value
+    };
+    
+    savePersistentData();
+    showToast('تم حفظ الإعدادات الظاهرية بنجاح', 'success');
+}
+
+// ========== دوال الملف الشخصي ==========
+function renderProfile() {
+    return `
+        <div class="p-4 lg:p-6 max-w-4xl mx-auto fade-in">
+            <div class="card bg-white dark:bg-gray-800 border dark:border-gray-700">
+                <div class="card-body">
+                    <h2 class="card-title">الملف الشخصي</h2>
+                    <div class="flex flex-col md:flex-row gap-6 items-center">
+                        <div class="avatar">
+                            <div class="w-24 h-24 rounded-full bg-primary text-white flex items-center justify-center text-2xl">
+                                <span id="profile-avatar">م</span>
+                            </div>
+                        </div>
+                        <div class="flex-1">
+                            <h3 class="text-xl font-bold" id="profile-name">مدير النظام</h3>
+                            <p class="text-gray-600 dark:text-gray-400" id="profile-email">admin@muhasebypro.com</p>
+                            <p class="text-sm text-gray-500">آخر دخول: ${new Date().toLocaleString('ar-EG')}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+                <div class="card bg-white dark:bg-gray-800 border dark:border-gray-700">
+                    <div class="card-body">
+                        <h3 class="card-title">معلومات المستخدم</h3>
+                        <div class="space-y-4">
+                            <div class="form-control">
+                                <label class="label">
+                                    <span class="label-text">الاسم الكامل</span>
+                                </label>
+                                <input type="text" class="input input-bordered dark:bg-gray-700 dark:border-gray-600" 
+                                       value="مدير النظام" id="user-fullname">
+                            </div>
+                            <div class="form-control">
+                                <label class="label">
+                                    <span class="label-text">البريد الإلكتروني</span>
+                                </label>
+                                <input type="email" class="input input-bordered dark:bg-gray-700 dark:border-gray-600" 
+                                       value="admin@muhasebypro.com" id="user-email">
+                            </div>
+                            <div class="form-control">
+                                <label class="label">
+                                    <span class="label-text">الهاتف</span>
+                                </label>
+                                <input type="tel" class="input input-bordered dark:bg-gray-700 dark:border-gray-600" 
+                                       value="+20123456789" id="user-phone">
+                            </div>
+                        </div>
+                        <div class="card-actions justify-end mt-4">
+                            <button class="btn btn-primary" onclick="updateProfile()">تحديث الملف</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card bg-white dark:bg-gray-800 border dark:border-gray-700">
+                    <div class="card-body">
+                        <h3 class="card-title">تغيير كلمة المرور</h3>
+                        <div class="space-y-4">
+                            <div class="form-control">
+                                <label class="label">
+                                    <span class="label-text">كلمة المرور الحالية</span>
+                                </label>
+                                <input type="password" class="input input-bordered dark:bg-gray-700 dark:border-gray-600" 
+                                       id="current-password">
+                            </div>
+                            <div class="form-control">
+                                <label class="label">
+                                    <span class="label-text">كلمة المرور الجديدة</span>
+                                </label>
+                                <input type="password" class="input input-bordered dark:bg-gray-700 dark:border-gray-600" 
+                                       id="new-password">
+                            </div>
+                            <div class="form-control">
+                                <label class="label">
+                                    <span class="label-text">تأكيد كلمة المرور</span>
+                                </label>
+                                <input type="password" class="input input-bordered dark:bg-gray-700 dark:border-gray-600" 
+                                       id="confirm-password">
+                            </div>
+                        </div>
+                        <div class="card-actions justify-end mt-4">
+                            <button class="btn btn-primary" onclick="changePassword()">تغيير كلمة المرور</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+function updateProfile() {
+    // في التطبيق الكامل، نقوم بتحديث بيانات المستخدم
+    showToast('تم تحديث الملف الشخصي بنجاح', 'success');
+}
+
+function changePassword() {
+    const currentPassword = document.getElementById('current-password').value;
+    const newPassword = document.getElementById('new-password').value;
+    const confirmPassword = document.getElementById('confirm-password').value;
+    
+    if (!currentPassword || !newPassword || !confirmPassword) {
+        showToast('يرجى ملء جميع الحقول', 'error');
+        return;
+    }
+    
+    if (newPassword !== confirmPassword) {
+        showToast('كلمة المرور الجديدة غير متطابقة', 'error');
+        return;
+    }
+    
+    // في التطبيق الكامل، نتحقق من كلمة المرور الحالية ونقوم بالتغيير
+    showToast('تم تغيير كلمة المرور بنجاح', 'success');
+    
+    // إعادة تعيين الحقول
+    document.getElementById('current-password').value = '';
+    document.getElementById('new-password').value = '';
+    document.getElementById('confirm-password').value = '';
+}
+
+// ========== نهاية الكود ==========
+</script>
+
+</body>
+</html>

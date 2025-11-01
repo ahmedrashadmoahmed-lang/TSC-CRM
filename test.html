@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+    <meta charset="UTF-8">
+    <title>اختبار اتصال Muhaseby Pro</title>
+</head>
+<body>
+    <h1>🔗 اختبار اتصال API</h1>
+    
+    <button onclick="testHealth()">فحص حالة الخادم</button>
+    <button onclick="getCustomers()">جلب العملاء</button>
+    <button onclick="getInvoices()">جلب الفواتير</button>
+    <button onclick="getProducts()">جلب المنتجات</button>
+    
+    <div id="result" style="margin-top: 20px; padding: 10px; border: 1px solid #ccc;"></div>
+
+    <script src="js/api.js"></script>
+    <script>
+        async function testHealth() {
+            try {
+                const result = await muhasebyProAPI.healthCheck();
+                showResult('✅ اتصال ناجح: ' + result.message, 'success');
+            } catch (error) {
+                showResult('❌ فشل الاتصال: ' + error.message, 'error');
+            }
+        }
+
+        async function getCustomers() {
+            try {
+                const result = await muhasebyProAPI.getCustomers();
+                showResult('👥 العملاء: ' + JSON.stringify(result.data), 'success');
+            } catch (error) {
+                showResult('❌ خطأ في جلب العملاء: ' + error.message, 'error');
+            }
+        }
+
+        async function getInvoices() {
+            try {
+                const result = await muhasebyProAPI.getInvoices();
+                showResult('🧾 الفواتير: ' + JSON.stringify(result.data), 'success');
+            } catch (error) {
+                showResult('❌ خطأ في جلب الفواتير: ' + error.message, 'error');
+            }
+        }
+
+        async function getProducts() {
+            try {
+                const result = await muhasebyProAPI.getProducts();
+                showResult('📦 المنتجات: ' + JSON.stringify(result.data), 'success');
+            } catch (error) {
+                showResult('❌ خطأ في جلب المنتجات: ' + error.message, 'error');
+            }
+        }
+
+        function showResult(message, type) {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = `<p style="color: ${type === 'success' ? 'green' : 'red'}">${message}</p>`;
+        }
+    </script>
+</body>
+</html>
