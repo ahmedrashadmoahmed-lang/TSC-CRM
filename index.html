@@ -158,11 +158,18 @@
                                 <span id="user-avatar">م</span>
                             </div>
                         </div>
-                        <ul tabindex="0" class="menu menu-sm dropdown-content mt-3 z-[1] p-2 shadow bg-base-100 dark:bg-gray-800 rounded-box w-52">
-                            <li class="p-2 text-sm font-semibold border-b dark:border-gray-700" id="user-name">مدير النظام</li>
+                        <ul tabindex="0" class="menu menu-sm dropdown-content mt-3 z-[1] p-2 shadow bg-base-100 dark:bg-gray-800 rounded-box w-64">
+                            <li class="menu-title">
+                                <div class="flex flex-col items-start px-4 py-2">
+                                    <span id="user-name-menu" class="font-bold text-base">مدير النظام</span>
+                                    <span id="user-role-menu" class="text-xs text-gray-500">مدير النظام</span>
+                                </div>
+                            </li>
+                            <li><hr /></li>
                             <li><a onclick="navigateTo('profile')"><i class="bi bi-person"></i> الملف الشخصي</a></li>
                             <li><a onclick="navigateTo('settings')"><i class="bi bi-gear"></i> الإعدادات</a></li>
                             <li><a onclick="showModal('backupModal')"><i class="bi bi-cloud-arrow-down"></i> النسخ الاحتياطي</a></li>
+                            <li><hr /></li>
                             <li><a class="text-error" onclick="logout()"><i class="bi bi-box-arrow-right"></i> تسجيل الخروج</a></li>
                         </ul>
                     </div>
